@@ -15,7 +15,7 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE "Debug")
 ENDIF()
 
-INCLUDE_DIRECTORIES("src/" "include/" "src/external/glm" "src/external/imgui" "src/external/imgui/backends")
+INCLUDE_DIRECTORIES("src/" "src/external/glm" "src/external/imgui" "src/external/imgui/backends")
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
 
