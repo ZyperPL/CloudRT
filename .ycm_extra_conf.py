@@ -6,6 +6,8 @@ flags = [
     'cuda',
     '-I./src',
     '-I./src/external/glm/',
+    '-I./src/external/imgui/',
+    '-I./src/external/imgui/backends/',
     '-I./include/',
     '-Wall',
     '-Wextra',

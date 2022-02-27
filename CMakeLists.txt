@@ -15,7 +15,7 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE "Debug")
 ENDIF()
 
-INCLUDE_DIRECTORIES("src/" "include/" "src/external/glm")
+INCLUDE_DIRECTORIES("src/" "include/" "src/external/glm" "src/external/imgui" "src/external/imgui/backends")
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
 
@@ -24,9 +24,9 @@ SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -O3 -s -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 ADD_COMPILE_OPTIONS(${CMAKE_NVCC_FLAGS} -fPIC -Wall -Wextra)
 
-FILE(GLOB SOURCES "src/*.cu" "src/*.cpp")
+FILE(GLOB SOURCES "src/*.cu" "src/*.cpp" "src/external/imgui/backends/imgui_impl_glfw.cpp" "src/external/imgui/backends/imgui_impl_opengl3.cpp" "src/external/imgui/*.cpp")
 ADD_EXECUTABLE(${NAME} "${SOURCES}")
-TARGET_LINK_LIBRARIES(${NAME} PRIVATE stdc++ pthread)
+TARGET_LINK_LIBRARIES(${NAME} PRIVATE stdc++ pthread GL glfw)
 
 ADD_CUSTOM_TARGET(run
   COMMAND build/${NAME}

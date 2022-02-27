@@ -232,3 +232,4 @@ tags
 [._]*.un~
 
 build/
+imgui.ini
