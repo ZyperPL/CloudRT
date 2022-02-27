@@ -15,7 +15,7 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE "Debug")
 ENDIF()
 
-INCLUDE_DIRECTORIES("src/" "include/" "src/glm")
+INCLUDE_DIRECTORIES("src/" "include/" "src/external/glm")
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
 

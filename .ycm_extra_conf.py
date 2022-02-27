@@ -5,7 +5,7 @@ flags = [
     '-x',
     'cuda',
     '-I./src',
-    '-I./src/glm/',
+    '-I./src/external/glm/',
     '-I./include/',
     '-Wall',
     '-Wextra',
