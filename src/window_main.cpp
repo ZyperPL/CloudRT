@@ -55,6 +55,8 @@ WindowMain::WindowMain() {
 
   ImGui_ImplGlfw_InitForOpenGL(handle, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
+
+  io.Fonts->AddFontFromFileTTF("assets/iosevka-aile-medium.ttf", 14.0f);
 }
 
 void WindowMain::render() {
