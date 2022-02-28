@@ -49,25 +49,12 @@ WindowMain::WindowMain() {
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  // io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-  io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-
-  // io.ConfigViewportsNoAutoMerge = true;
-  // io.ConfigViewportsNoTaskBarIcon = true;
 
   ImGui::StyleColorsDark();
 
-  ImGuiStyle &style = ImGui::GetStyle();
-  if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-    style.WindowRounding = 0.0f;
-    style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-  }
-
   ImGui_ImplGlfw_InitForOpenGL(handle, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
-
-  // io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
 }
 
 void WindowMain::render() {
@@ -78,12 +65,43 @@ void WindowMain::render() {
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
 
-  static bool show_demo_window = true;
-  ImGui::ShowDemoWindow(&show_demo_window);
+  static bool show_demo_window = false;
 
-  ImGui::Begin("Hello, world!");
-  ImGui::Text("Test.");
+  const ImGuiWindowFlags window_flags =
+      ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking |
+      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+      ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+  const ImGuiViewport *viewport = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(viewport->WorkPos);
+  ImGui::SetNextWindowSize(viewport->WorkSize);
+  ImGui::SetNextWindowViewport(viewport->ID);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+  ImGui::Begin("DockSpace Demo", NULL, window_flags);
+
+  ImGui::PopStyleVar(3);
+  ImGuiIO &io = ImGui::GetIO();
+  if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
+    ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+  }
+  if (ImGui::BeginMenuBar()) {
+    if (ImGui::BeginMenu("Options")) {
+      ImGui::Separator();
+      ImGui::MenuItem("Test");
+      if (ImGui::MenuItem("Show Demo Window", "", show_demo_window))
+        show_demo_window = !show_demo_window;
+      ImGui::Separator();
+      ImGui::EndMenu();
+    }
+    ImGui::EndMenuBar();
+  }
   ImGui::End();
+
+  if (show_demo_window)
+    ImGui::ShowDemoWindow(&show_demo_window);
 
   ImGui::Render();
   int framebuffer_width, framebuffer_height;
@@ -93,7 +111,6 @@ void WindowMain::render() {
   glClear(GL_COLOR_BUFFER_BIT);
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-  ImGuiIO &io = ImGui::GetIO();
   if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
     GLFWwindow *backup_current_context = glfwGetCurrentContext();
     ImGui::UpdatePlatformWindows();
