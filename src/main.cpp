@@ -4,6 +4,7 @@
 #include "test.hpp"
 
 #include "window_main.hpp"
+#include "texture.hpp"
 
 int main() {
   printf("Ready.\n");
@@ -13,6 +14,7 @@ int main() {
   printf("Length: %24.12f\n", glm::length(vec));
 
   WindowMain window;
+
   while (window.is_open())
     window.render();
 

@@ -8,3 +8,4 @@
 #endif
 
 void start_cuda_hello();
+void launch_render(struct cudaGraphicsResource *pbo, size_t w, size_t h);

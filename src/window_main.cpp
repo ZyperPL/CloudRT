@@ -4,6 +4,8 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <stdio.h>
+
+#include <GL/glew.h>
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
 #endif
@@ -13,6 +15,9 @@
     !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
+
+#include "texture.hpp"
+#include "test.hpp"
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW error %d: %s\n", error, description);
@@ -44,6 +49,12 @@ WindowMain::WindowMain() {
   if (!handle)
     return;
   glfwMakeContextCurrent(handle);
+
+  GLenum err = glewInit();
+  if (GLEW_OK != err) {
+    fprintf(stderr, "GLEW Error: %s\n", glewGetErrorString(err));
+  }
+  fprintf(stdout, "GLEW version: %s\n", glewGetString(GLEW_VERSION));
 
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -81,7 +92,7 @@ void WindowMain::render() {
   ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-  ImGui::Begin("DockSpace Demo", NULL, window_flags);
+  ImGui::Begin("DockSpace", NULL, window_flags);
 
   ImGui::PopStyleVar(3);
   ImGuiIO &io = ImGui::GetIO();
@@ -105,12 +116,27 @@ void WindowMain::render() {
   if (show_demo_window)
     ImGui::ShowDemoWindow(&show_demo_window);
 
+  ImGui::Begin("Window");
+  ImGui::Text("Test");
+  ImGui::End();
+
+  const size_t w = 1024;
+  const size_t h = 1024;
+  static Texture texture(w, h);
+  auto pbo = texture.get_pbo_resource();
+  launch_render(pbo, w, h);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+
+  ImGui::Begin("OpenGL Texture Text");
+  ImGui::Text("size = %zu x %zu", texture.get_width(), texture.get_height());
+  ImGui::Image((void *)(intptr_t)texture.get_id(),
+               ImVec2(texture.get_width(), texture.get_height()));
+  ImGui::End();
+
   ImGui::Render();
   int framebuffer_width, framebuffer_height;
   glfwGetFramebufferSize(handle, &framebuffer_width, &framebuffer_height);
   glViewport(0, 0, framebuffer_width, framebuffer_height);
-  glClearColor(0.3f, 0.5f, 0.9f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
   ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
   if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
