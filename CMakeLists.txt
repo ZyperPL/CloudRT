@@ -19,14 +19,14 @@ INCLUDE_DIRECTORIES("src/" "src/external/glm" "src/external/imgui" "src/external
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
 
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -DDEBUG")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -DDEBUG -ggdb")
 SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -O3 -s -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 ADD_COMPILE_OPTIONS(${CMAKE_NVCC_FLAGS} -fPIC -Wall -Wextra)
 
 FILE(GLOB SOURCES "src/*.cu" "src/*.cpp" "src/external/imgui/backends/imgui_impl_glfw.cpp" "src/external/imgui/backends/imgui_impl_opengl3.cpp" "src/external/imgui/*.cpp")
 ADD_EXECUTABLE(${NAME} "${SOURCES}")
-TARGET_LINK_LIBRARIES(${NAME} PRIVATE stdc++ pthread GL glfw)
+TARGET_LINK_LIBRARIES(${NAME} PRIVATE stdc++ pthread GLEW GL glfw)
 
 ADD_CUSTOM_TARGET(run
   COMMAND build/${NAME}
