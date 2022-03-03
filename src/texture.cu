@@ -5,7 +5,7 @@ const size_t COLOR_COMPONENTS_N = 3;
 Texture::Texture(size_t width, size_t height) : width{width}, height{height} {
   glGenBuffers(1, &pbo);
   glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
-  glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * COLOR_COMPONENTS_N * sizeof(GLubyte), 0, GL_STREAM_DRAW);
+  glBufferData(GL_PIXEL_UNPACK_BUFFER, width * height * COLOR_COMPONENTS_N * sizeof(GLfloat), 0, GL_STREAM_DRAW);
 
   glGenTextures(1, &id);
   glBindTexture(GL_TEXTURE_2D, id);

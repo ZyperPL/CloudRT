@@ -125,7 +125,7 @@ void WindowMain::render() {
   static Texture texture(w, h);
   auto pbo = texture.get_pbo_resource();
   launch_render(pbo, w, h);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL);
 
   ImGui::Begin("OpenGL Texture Text");
   ImGui::Text("size = %zu x %zu", texture.get_width(), texture.get_height());
