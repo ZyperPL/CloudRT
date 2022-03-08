@@ -120,14 +120,14 @@ void WindowMain::render() {
   ImGui::Text("Test");
   ImGui::End();
 
-  const size_t w = 1024;
-  const size_t h = 1024;
-  static Texture texture(w, h);
+  ImGui::Begin("OpenGL Texture Text");
+  static int w = 640;
+  ImGui::SliderInt("Texture size", &w, 32, 2048);
+  const size_t h = w;
+  Texture texture(w, h);
   auto pbo = texture.get_pbo_resource();
   launch_render(pbo, w, h);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL);
-
-  ImGui::Begin("OpenGL Texture Text");
   ImGui::Text("size = %zu x %zu", texture.get_width(), texture.get_height());
   ImGui::Image((void *)(intptr_t)texture.get_id(),
                ImVec2(texture.get_width(), texture.get_height()));
