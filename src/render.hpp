@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glm/glm.hpp"
+#include "texture.hpp"
 
 #if defined(__CUDACC__)
 #include <cuda.h>
@@ -20,4 +21,4 @@ struct RenderParameters
   float time;
 };
 
-void launch_render(struct cudaGraphicsResource *pbo, RenderParameters parameters);
+void launch_render(Texture &out_texture, RenderParameters parameters);

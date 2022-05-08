@@ -29,3 +29,14 @@ struct cudaGraphicsResource *Texture::get_pbo_resource() const
 { 
   return cuda_pbo_resource; 
 }
+
+void Texture::map_resource(float3 *&ptr)
+{
+  cudaGraphicsMapResources(1, &cuda_pbo_resource, 0);
+  cudaGraphicsResourceGetMappedPointer((void **)(&ptr), NULL, cuda_pbo_resource);
+}
+
+void Texture::unmap_resource()
+{
+  cudaGraphicsUnmapResources(1, &cuda_pbo_resource, 0);
+}

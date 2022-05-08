@@ -1,5 +1,3 @@
-#include "cuda_noise.cuh"
-
 #include "ray.hpp"
 
 #include "render.hpp"
@@ -308,15 +306,14 @@ __global__ void render(float3 *d_out, RenderParameters parameters) {
   d_out[i] = output;
 }
 
-void launch_render(struct cudaGraphicsResource *pbo,
+void launch_render(Texture &out_texture,
                    RenderParameters parameters) {
   const dim3 blockSize(16, 16);
   const dim3 gridSize =
       dim3((parameters.width + blockSize.x - 1) / blockSize.x,
            (parameters.height + blockSize.y - 1) / blockSize.y);
-  float3 *d_out = 0;
-  cudaGraphicsMapResources(1, &pbo, 0);
-  cudaGraphicsResourceGetMappedPointer((void **)(&d_out), NULL, pbo);
+  float3 *d_out = nullptr;
+  out_texture.map_resource(d_out);
   render<<<gridSize, blockSize>>>(d_out, parameters);
-  cudaGraphicsUnmapResources(1, &pbo, 0);
+  out_texture.unmap_resource();
 }

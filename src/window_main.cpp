@@ -141,7 +141,6 @@ void WindowMain::render() {
   ImGui::SliderInt("Texture size", &w, 32, 2048);
   const size_t h = w;
   Texture texture(w, h);
-  auto pbo = texture.get_pbo_resource();
   RenderParameters parameters;
   parameters.width = w;
   parameters.height = h;
@@ -149,7 +148,7 @@ void WindowMain::render() {
   parameters.camera_position = camera_position;
   parameters.light_position = light_position;
   parameters.light_color = light_color;
-  launch_render(pbo, parameters);
+  launch_render(texture, parameters);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL);
   ImGui::Text("size = %zu x %zu", texture.get_width(), texture.get_height());
   ImGui::Image((void *)(intptr_t)texture.get_id(),

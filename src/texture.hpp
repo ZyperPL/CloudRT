@@ -13,6 +13,8 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
+#else
+typedef void float3;
 #endif
 
 class Texture {
@@ -23,6 +25,8 @@ public:
   size_t get_width() const { return width; }
   size_t get_height() const { return height; }
   struct cudaGraphicsResource *get_pbo_resource() const;
+  void map_resource(float3 *&ptr);
+  void unmap_resource();
 
 private:
   GLuint id{0};
