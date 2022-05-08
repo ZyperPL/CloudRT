@@ -11,13 +11,15 @@
 #endif
 #include <GLFW/glfw3.h>
 
+#include "glm/gtc/type_ptr.hpp"
+
 #if defined(_MSC_VER) && (_MSC_VER >= 1900) &&                                 \
     !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
 #include "texture.hpp"
-#include "test.hpp"
+#include "render.hpp"
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW error %d: %s\n", error, description);
@@ -116,17 +118,38 @@ void WindowMain::render() {
   if (show_demo_window)
     ImGui::ShowDemoWindow(&show_demo_window);
 
-  ImGui::Begin("Window");
-  ImGui::Text("Test");
+  ImGui::Begin("Parameters");
+  ImGui::Text("Render parameters");
+  
+  static float t = 0.0f;
+  t += 0.01f;
+  ImGui::Text("Time: %f\n", t);
+
+  static glm::vec3 camera_position(20.0f, 18.0f, -50.0f);
+  ImGui::DragFloat3("Camera position", glm::value_ptr(camera_position), 1.0f, -100.0f, 100.0f);  
+  
+  static glm::vec3 light_position(0.0f, 0.0f, 0.0f);
+  ImGui::DragFloat3("Light position", glm::value_ptr(light_position), 1.0f, -100.0f, 100.0f);  
+
+  static glm::vec3 light_color(0.0f, 0.0f, 0.0f);
+  ImGui::DragFloat3("Light color", glm::value_ptr(light_color), 1000.0f, 900.0f, 850.0f);  
+
   ImGui::End();
 
-  ImGui::Begin("OpenGL Texture Text");
+  ImGui::Begin("Texture");
   static int w = 640;
   ImGui::SliderInt("Texture size", &w, 32, 2048);
   const size_t h = w;
   Texture texture(w, h);
   auto pbo = texture.get_pbo_resource();
-  launch_render(pbo, w, h);
+  RenderParameters parameters;
+  parameters.width = w;
+  parameters.height = h;
+  parameters.time = t;
+  parameters.camera_position = camera_position;
+  parameters.light_position = light_position;
+  parameters.light_color = light_color;
+  launch_render(pbo, parameters);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL);
   ImGui::Text("size = %zu x %zu", texture.get_width(), texture.get_height());
   ImGui::Image((void *)(intptr_t)texture.get_id(),

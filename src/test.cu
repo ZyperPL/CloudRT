@@ -2,9 +2,8 @@
 
 #include <cstdio>
 
-#include "glm/glm.hpp"
-
-#include "cuda_noise.cuh"
+#include "ray.hpp"
+//#include "cuda_noise.cuh"
 
 __global__ void cuda_hello() { printf("Hello World from GPU!\n"); }
 
@@ -14,12 +13,6 @@ void start_cuda_hello() {
   cudaDeviceSynchronize();
   printf("CUDA done.\n");
 }
-
-struct Ray
-{
-  glm::vec3 pos{0.0f, 0.0f, 0.0f};
-  glm::vec3 dir{0.0f, 0.0f, 0.0f};
-};
 
 __device__ __host__ bool intersect(Ray ray, glm::vec3 ball, float radius)
 {
@@ -34,7 +27,7 @@ __device__ __host__ bool intersect(Ray ray, glm::vec3 ball, float radius)
   return false;
 }
 
-__global__ void render(float3 *d_out, int w, int h, float t) {
+__global__ void render_test(float3 *d_out, int w, int h, float t) {
   const int c = blockIdx.x * blockDim.x + threadIdx.x;
   const int r = blockIdx.y * blockDim.y + threadIdx.y;
   if ((c >= w) || (r >= h))
@@ -89,7 +82,8 @@ __global__ void render(float3 *d_out, int w, int h, float t) {
       ray.pos += ray.dir;
     }
 
-    float noise = cudaNoise::perlinNoise(float3{ray.pos.x, ray.pos.y, ray.pos.z + t * 100.0f}, 0.1f, 1234);
+    float noise = 1.0;
+    //float noise = cudaNoise::perlinNoise(float3{ray.pos.x, ray.pos.y, ray.pos.z + t * 100.0f}, 0.1f, 1234);
     if (noise > 0.8f)
     {
       d_out[i].x += noise / (float)(STEPS);
@@ -100,10 +94,11 @@ __global__ void render(float3 *d_out, int w, int h, float t) {
   pos.x = float(c) / float(w);
   pos.y = float(r) / float(h);
   pos.z = t / 100.0f;
-  float n = (cudaNoise::perlinNoise(pos, 1.0, 123) + 1.0f) / 3.0f;
-  n += (cudaNoise::perlinNoise(pos, 10.0, 123) + 1.0f) / 3.0f;
-  n += (cudaNoise::perlinNoise(pos, 30.0, 123) + 1.0f) / 3.0f;
-  //d_out[i].x = n / 3.0f;
+  float n = 1.0f;
+  //float n = (cudaNoise::perlinNoise(pos, 1.0, 123) + 1.0f) / 3.0f;
+  //n += (cudaNoise::perlinNoise(pos, 10.0, 123) + 1.0f) / 3.0f;
+  //n += (cudaNoise::perlinNoise(pos, 30.0, 123) + 1.0f) / 3.0f;
+  d_out[i].x = n / 3.0f;
 }
 
 void launch_render(struct cudaGraphicsResource *pbo, size_t w, size_t h) {
@@ -115,6 +110,6 @@ void launch_render(struct cudaGraphicsResource *pbo, size_t w, size_t h) {
   cudaGraphicsResourceGetMappedPointer((void **)(&d_out), NULL, pbo);
   static float t = 0.0f;
   t += 0.1f;
-  render<<<gridSize, blockSize>>>(d_out, w, h, t);
+  render_test<<<gridSize, blockSize>>>(d_out, w, h, t);
   cudaGraphicsUnmapResources(1, &pbo, 0);
 }
