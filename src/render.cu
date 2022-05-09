@@ -35,7 +35,7 @@ __device__ float noise(glm::vec3 x) {
   glm::vec3 f = fract(x);
   f = f * f * (3.0f - 2.0f * f);
   // return glm::sin(x.x) + cos(x.y) + glm::sin(x.z)*cos(x.z) / 453.234;
-  return 0.1;
+  return p.x*0.00001f + f.z*0.00001f + 0.1f;
   // return textureLod(iChannel2, (p+f+0.5)/24.0, 0.0).x;
 }
 
@@ -306,14 +306,22 @@ __global__ void render(float3 *d_out, RenderParameters parameters) {
   d_out[i] = output;
 }
 
-void launch_render(Texture &out_texture,
+void launch_render(Texture &out_texture, 
+                   Texture &clouds_texture,
                    RenderParameters parameters) {
   const dim3 blockSize(16, 16);
   const dim3 gridSize =
       dim3((parameters.width + blockSize.x - 1) / blockSize.x,
            (parameters.height + blockSize.y - 1) / blockSize.y);
+
   float3 *d_out = nullptr;
   out_texture.map_resource(d_out);
+
+  float3 *d_cloud = nullptr;
+  clouds_texture.map_resource(d_cloud);
+
   render<<<gridSize, blockSize>>>(d_out, parameters);
+
   out_texture.unmap_resource();
+  clouds_texture.unmap_resource();
 }

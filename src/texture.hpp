@@ -28,6 +28,8 @@ public:
   void map_resource(float3 *&ptr);
   void unmap_resource();
 
+  void update();
+
 private:
   GLuint id{0};
   GLuint pbo{0};

@@ -21,4 +21,4 @@ struct RenderParameters
   float time;
 };
 
-void launch_render(Texture &out_texture, RenderParameters parameters);
+void launch_render(Texture &out_texture, Texture &clouds_texture, RenderParameters parameters);

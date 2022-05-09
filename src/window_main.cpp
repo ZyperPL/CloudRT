@@ -18,11 +18,24 @@
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
-#include "texture.hpp"
+#include "cloud_noise.hpp"
 #include "render.hpp"
+#include "texture.hpp"
 
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW error %d: %s\n", error, description);
+}
+
+void GLAPIENTRY gl_message_callback(GLenum, GLenum type, GLuint,
+                                    GLenum severity, GLsizei,
+                                    const GLchar *message, const void *) {
+  if (type == GL_DEBUG_TYPE_OTHER_ARB)
+    return;
+
+  fprintf(stderr,
+          "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n",
+          (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), type, severity,
+          message);
 }
 
 WindowMain::WindowMain() {
@@ -58,6 +71,9 @@ WindowMain::WindowMain() {
   }
   fprintf(stdout, "GLEW version: %s\n", glewGetString(GLEW_VERSION));
 
+  glEnable(GL_DEBUG_OUTPUT);
+  glDebugMessageCallback(gl_message_callback, 0);
+
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
@@ -70,6 +86,10 @@ WindowMain::WindowMain() {
   ImGui_ImplOpenGL3_Init(glsl_version);
 
   io.Fonts->AddFontFromFileTTF("assets/iosevka-aile-medium.ttf", 14.0f);
+
+  ImGui_ImplOpenGL3_NewFrame();
+  render_texture = std::make_unique<Texture>(640, 480);
+  clouds_texture = std::make_unique<Texture>(2048, 2048);
 }
 
 void WindowMain::render() {
@@ -120,39 +140,57 @@ void WindowMain::render() {
 
   ImGui::Begin("Parameters");
   ImGui::Text("Render parameters");
-  
+
   static float t = 0.0f;
   t += 0.01f;
   ImGui::Text("Time: %f\n", t);
 
   static glm::vec3 camera_position(20.0f, 18.0f, -50.0f);
-  ImGui::DragFloat3("Camera position", glm::value_ptr(camera_position), 1.0f, -100.0f, 100.0f);  
-  
+  ImGui::DragFloat3("Camera position", glm::value_ptr(camera_position), 1.0f,
+                    -100.0f, 100.0f);
+
   static glm::vec3 light_position(0.0f, 0.0f, 0.0f);
-  ImGui::DragFloat3("Light position", glm::value_ptr(light_position), 1.0f, -100.0f, 100.0f);  
+  ImGui::DragFloat3("Light position", glm::value_ptr(light_position), 1.0f,
+                    -100.0f, 100.0f);
 
   static glm::vec3 light_color(0.0f, 0.0f, 0.0f);
-  ImGui::DragFloat3("Light color", glm::value_ptr(light_color), 1000.0f, 900.0f, 850.0f);  
+  ImGui::DragFloat3("Light color", glm::value_ptr(light_color), 1000.0f, 900.0f,
+                    850.0f);
 
   ImGui::End();
 
-  ImGui::Begin("Texture");
-  static int w = 640;
-  ImGui::SliderInt("Texture size", &w, 32, 2048);
-  const size_t h = w;
-  Texture texture(w, h);
-  RenderParameters parameters;
-  parameters.width = w;
-  parameters.height = h;
-  parameters.time = t;
-  parameters.camera_position = camera_position;
-  parameters.light_position = light_position;
-  parameters.light_color = light_color;
-  launch_render(texture, parameters);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_FLOAT, NULL);
-  ImGui::Text("size = %zu x %zu", texture.get_width(), texture.get_height());
-  ImGui::Image((void *)(intptr_t)texture.get_id(),
-               ImVec2(texture.get_width(), texture.get_height()));
+  ImGui::Begin("Clouds");
+  if (clouds_texture) {
+    generate_cloud_noise(*clouds_texture);
+    clouds_texture->update();
+    ImVec2 avail_size = ImGui::GetContentRegionAvail();
+    ImGui::Image(
+        (void *)(intptr_t)clouds_texture->get_id(),
+        avail_size);
+  }
+  ImGui::End();
+
+  ImGui::Begin("Render");
+
+  if (render_texture && clouds_texture) {
+    RenderParameters parameters;
+    parameters.width = render_texture->get_width();
+    parameters.height = render_texture->get_height();
+    parameters.time = t;
+    parameters.camera_position = camera_position;
+    parameters.light_position = light_position;
+    parameters.light_color = light_color;
+    launch_render(*render_texture, *clouds_texture, parameters);
+    ImGui::Text("size = %zu x %zu", render_texture->get_width(),
+                render_texture->get_height());
+
+    render_texture->update();
+    ImGui::Image(
+        (void *)(intptr_t)render_texture->get_id(),
+        ImVec2(render_texture->get_width(), render_texture->get_height()));
+  } else {
+    ImGui::Text("Render texture not defined!");
+  }
   ImGui::End();
 
   ImGui::Render();
