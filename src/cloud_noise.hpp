@@ -10,4 +10,15 @@
 #include <device_launch_parameters.h>
 #endif
 
-void generate_cloud_noise(Texture &texture);
+struct CloudsRenderParameters
+{
+  glm::vec3 position;
+  int width;
+  int height;
+  float frequency;
+  float octaves;
+  float time;
+};
+
+
+void generate_cloud_noise(Texture &texture, CloudsRenderParameters &parameters);

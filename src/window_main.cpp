@@ -161,7 +161,22 @@ void WindowMain::render() {
 
   ImGui::Begin("Clouds");
   if (clouds_texture) {
-    generate_cloud_noise(*clouds_texture);
+    static float frequency = 1000.0f;
+    static float octaves = 1.0f;
+    ImGui::DragFloat("Frequency", &frequency);
+    ImGui::DragFloat("Octaves", &octaves);
+
+    static glm::vec3 noise_pos(0.0f, 0.0f, 0.0f);
+    ImGui::DragFloat3("Position", glm::value_ptr(noise_pos), 0.001f, 0.0f, 100.0f);
+
+    CloudsRenderParameters clouds_parameters;
+    clouds_parameters.position = noise_pos;
+    clouds_parameters.width =  clouds_texture->get_width();
+    clouds_parameters.height = clouds_texture->get_height();
+    clouds_parameters.time = t;
+    clouds_parameters.frequency = frequency;
+    clouds_parameters.octaves = octaves;
+    generate_cloud_noise(*clouds_texture, clouds_parameters);
     clouds_texture->update();
     ImVec2 avail_size = ImGui::GetContentRegionAvail();
     ImGui::Image(
