@@ -177,7 +177,6 @@ void WindowMain::render() {
     clouds_parameters.frequency = frequency;
     clouds_parameters.octaves = octaves;
     generate_cloud_noise(*clouds_texture, clouds_parameters);
-    clouds_texture->update();
     ImVec2 avail_size = ImGui::GetContentRegionAvail();
     ImGui::Image(
         (void *)(intptr_t)clouds_texture->get_id(),
@@ -199,7 +198,6 @@ void WindowMain::render() {
     ImGui::Text("size = %zu x %zu", render_texture->get_width(),
                 render_texture->get_height());
 
-    render_texture->update();
     ImGui::Image(
         (void *)(intptr_t)render_texture->get_id(),
         ImVec2(render_texture->get_width(), render_texture->get_height()));

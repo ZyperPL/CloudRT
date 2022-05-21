@@ -26,13 +26,13 @@ __device__ float perlin(const glm::vec3 &pos, float frequency,
   return noise;
 }
 
-__global__ void render(float3 *d_out, CloudsRenderParameters parameters) {
+__global__ void render(cudaSurfaceObject_t surface, CloudsRenderParameters parameters) {
   const int c = blockIdx.x * blockDim.x + threadIdx.x;
   const int r = blockIdx.y * blockDim.y + threadIdx.y;
   if ((c >= parameters.width) || (r >= parameters.height))
     return;
 
-  const int i = c + r * parameters.width;
+  [[maybe_unused]] const int i = c + r * parameters.width;
   double du = static_cast<double>(c) / static_cast<double>(parameters.width);
   double dv =
       1.0 - (static_cast<double>(r) / static_cast<double>(parameters.height));
@@ -42,15 +42,13 @@ __global__ void render(float3 *d_out, CloudsRenderParameters parameters) {
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
 
-  float3 output;
+  float4 output;
   output.x = col.r;
   output.y = col.g;
   output.z = col.b;
+  output.w = 1.0f;
 
-  d_out[i].x = 0.0f;
-  d_out[i].y = 0.0f;
-  d_out[i].z = 0.0f;
-  d_out[i] = output;
+  surf2Dwrite(output, surface, c * sizeof(float4), r);
 }
 
 void generate_cloud_noise(Texture &texture, CloudsRenderParameters &params) {
@@ -59,11 +57,11 @@ void generate_cloud_noise(Texture &texture, CloudsRenderParameters &params) {
       dim3((texture.get_width() + blockSize.x - 1) / blockSize.x,
            (texture.get_height() + blockSize.y - 1) / blockSize.y);
 
-  float3 *d_out = nullptr;
-  texture.map_resource(d_out);
+  cudaSurfaceObject_t surface_obj = texture.create_cuda_surface_object();
+  
+  render<<<gridSize, blockSize>>>(surface_obj, params);
 
-  render<<<gridSize, blockSize>>>(d_out, params);
+  texture.destroy_cuda_surface_object(surface_obj);
 
-  texture.unmap_resource();
   cudaDeviceSynchronize();
 }
