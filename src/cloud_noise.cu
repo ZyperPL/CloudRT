@@ -2,6 +2,8 @@
 
 #include "glm/gtc/noise.hpp"
 
+#define surface_type float1
+
 __device__ float perlin(const glm::vec3 &pos, float frequency,
                         int octaveCount) {
   const float octaveFrenquencyFactor = 2;
@@ -42,13 +44,13 @@ __global__ void render(cudaSurfaceObject_t surface, CloudsRenderParameters param
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
 
-  float4 output;
+  surface_type output;
   output.x = col.r;
-  output.y = col.g;
-  output.z = col.b;
-  output.w = 1.0f;
+  //output.y = col.g;
+  //output.z = col.b;
+  //output.w = 1.0f;
 
-  surf2Dwrite(output, surface, c * sizeof(float4), r);
+  surf2Dwrite(output, surface, c * sizeof(surface_type), r);
 }
 
 void generate_cloud_noise(Texture &texture, CloudsRenderParameters &params) {

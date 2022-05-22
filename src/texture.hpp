@@ -22,11 +22,14 @@ typedef int cudaTextureObject_t;
 
 class Texture {
 public:
-  Texture(size_t width, size_t height);
+  enum class Format { Gray = 1, RGB = 3, RGBA = 4 };
+
+  Texture(size_t width, size_t height, Format comp = Format::RGBA);
   ~Texture();
   GLuint get_id() const { return id; }
   size_t get_width() const { return width; }
   size_t get_height() const { return height; }
+  Format get_format() const { return format; }
   struct cudaGraphicsResource *get_img_resource() const;
   void map_resource(cudaArray_t &arr);
   void unmap_resource();
@@ -43,4 +46,5 @@ private:
   struct cudaGraphicsResource *cuda_img_resource{nullptr};
   size_t width{32};
   size_t height{32};
+  Format format{Format::RGB};
 };

@@ -4,18 +4,37 @@
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
 
-Texture::Texture(size_t width, size_t height) : width{width}, height{height} {
+Texture::Texture(size_t width, size_t height, Format format)
+    : width{width}, height{height}, format{format} {
+  GLint tex_internal_format = GL_RGB16F;
+  GLenum tex_format = GL_RGB;
+
+  switch (format) {
+  case Format::Gray:
+    tex_internal_format = GL_R32F;
+    tex_format = GL_RED;
+    break;
+  case Format::RGB:
+    tex_internal_format = GL_RGB32F;
+    tex_format = GL_RGB;
+    break;
+  case Format::RGBA:
+    tex_internal_format = GL_RGBA32F;
+    tex_format = GL_RGBA;
+    break;
+  }
+
   glEnable(GL_TEXTURE_2D);
   glGenTextures(1, &id);
   glBindTexture(GL_TEXTURE_2D, id);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height, 0, GL_RGBA,
-               GL_FLOAT, NULL);
+  glTexImage2D(GL_TEXTURE_2D, 0, tex_internal_format, width, height, 0,
+               tex_format, GL_FLOAT, NULL);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
   cudaGraphicsGLRegisterImage(&cuda_img_resource, id, GL_TEXTURE_2D,
                               cudaGraphicsRegisterFlagsSurfaceLoadStore);
@@ -79,9 +98,8 @@ cudaTextureObject_t Texture::create_cuda_texture_object() {
   tex_desc.normalizedCoords = 1;
   tex_desc.filterMode = cudaFilterModeLinear;
 
-  tex_desc.addressMode[0] = cudaAddressModeClamp;
-  tex_desc.addressMode[1] = cudaAddressModeClamp;
-  tex_desc.addressMode[2] = cudaAddressModeClamp;
+  tex_desc.addressMode[0] = cudaAddressModeWrap;
+  tex_desc.addressMode[1] = cudaAddressModeWrap;
 
   tex_desc.readMode = cudaReadModeElementType;
 

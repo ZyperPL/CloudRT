@@ -14,13 +14,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 */ 
 
-struct TextureView
-{
-  float3 *data;
-  int width;
-  int height;
-};
-
 // based on https://www.shadertoy.com/view/4dSBDt
 __device__ const float PI = 3.141592;
 
@@ -36,24 +29,25 @@ __device__ float hash(float n) { return glm::fract(sin(n) * 43758.5453); }
 //     return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);
 // }
 
-__device__ float noise(glm::vec3 x) {
+__device__ float noise(glm::vec3 x, cudaTextureObject_t clouds_texture) {
   glm::vec3 p = floor(x);
   glm::vec3 f = fract(x);
   f = f * f * (3.0f - 2.0f * f);
   // return glm::sin(x.x) + cos(x.y) + glm::sin(x.z)*cos(x.z) / 453.234;
-  return p.x*0.00001f + f.z*0.00001f + 0.1f;
+  //return p.x*0.00001f + f.z*0.00001f + 0.1f;
+  return tex2D<float1>(clouds_texture, (p.x+f.x+0.5f) / 24.0f, (p.y+f.y+0.5f) / 24.0f).x;
   // return textureLod(iChannel2, (p+f+0.5)/24.0, 0.0).x;
 }
 
-__device__ float fbm(glm::vec3 p) {
+__device__ float fbm(glm::vec3 p, cudaTextureObject_t clouds_texture) {
   glm::mat3 m =
       glm::mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
   float f;
-  f = 0.5000f * noise(p);
+  f = 0.5000f * noise(p, clouds_texture);
   p = m * p * 2.02f;
-  f += 0.2500f * noise(p);
+  f += 0.2500f * noise(p, clouds_texture);
   p = m * p * 2.03f;
-  f += 0.1250f * noise(p);
+  f += 0.1250f * noise(p, clouds_texture);
   p = m * p * 2.04f;
   return f;
 }
@@ -80,26 +74,6 @@ __device__ float intersectSphere(glm::vec3 origin, glm::vec3 dir,
   return (t0 < 0.0) ? t1 : t0;
 }
 
-__device__ float3 sample(TextureView &tex, glm::vec3 pos)
-{
-  float fx = glm::abs(pos.x * tex.width);
-  float fy = glm::abs(pos.y * tex.height);
-  int x = int(fx) % tex.width;
-  int y = int(fy) % tex.height;
-  int idx00 = glm::clamp(x + y * tex.width, 0, tex.width * tex.height);
-  int idx01 = glm::clamp(x + ((y+1) % tex.height) * tex.width, 0, tex.width * tex.height);
-  int idx10 = glm::clamp((x+1) % tex.width + y * tex.width, 0, tex.width * tex.height);
-  int idx11 = glm::clamp((x+1) % tex.width + (y+1) % tex.height * tex.width, 0, tex.width * tex.height);
-  float v00 = tex.data[idx00].x;
-  float v01 = tex.data[idx01].x;
-  float v10 = tex.data[idx10].x;
-  float v11 = tex.data[idx11].x;
-  printf("%f %f %d %d, %d %d %d %d, %f %f %f %f\n", fx, fy, x, y, idx00, idx01, idx10, idx11, v00, v01, v10, v11);
-  return tex.data[idx00];
-  float vy = v00 * (fy - float(y)) + v01 * (1.0f - fy - float(y));
-  float vx = v11 * (fx - float(x)) + v10 * (1.0 - fx - float(x));
-}
-
 __device__ float clouds(glm::vec3 p, float &cloudHeight, cudaTextureObject_t clouds_texture) {
   float atmoHeight =
       length(p - glm::vec3(0.0f, -EARTH_RADIUS, 0.0f)) - EARTH_RADIUS;
@@ -115,11 +89,13 @@ __device__ float clouds(glm::vec3 p, float &cloudHeight, cudaTextureObject_t clo
                   glm::sin(-0.005f * glm::vec2(p.y, p.x)).y - 0.18f) *
                      5.0f,
                  0.0f, 2.0f);
+  largeWeather = glm::clamp((tex2D<float1>(clouds_texture, p.z * -0.0005, p.x * -0.005).x - 0.18f) * 5.0f, 0.0f, 2.0f);
   // p.x += iTime*8.3;
 //  largeWeather = sample(clouds_texture, p).x;
 
   //return sample(clouds_texture, p * 0.0010f).x;
   float weather = largeWeather * (glm::max(0.0f, 1.0f)-0.28f) / 0.72f;
+  weather = largeWeather * glm::max(0.0f, tex2D<float1>(clouds_texture, 0.0002f * p.z, 0.0002f * p.x).x - 0.28f) / 0.72f;
   weather *= glm::smoothstep(0.0f, 0.5f, cloudHeight) *
              glm::smoothstep(1.0f, 0.5f, cloudHeight);
   float cloudShape =
@@ -127,13 +103,13 @@ __device__ float clouds(glm::vec3 p, float &cloudHeight, cudaTextureObject_t clo
   if (cloudShape <= 0.0)
     return 0.0;
   // p.x += iTime*12.3;
-  float den = glm::max(0.0f, cloudShape - 0.7f * fbm(p * .01f));
+  float den = glm::max(0.0f, cloudShape - 0.7f * fbm(p * .01f, clouds_texture));
   if (den <= 0.0)
     return 0.0;
 
   // p.y += iTime*15.2;
-  den = glm::max(0.0f, den - 0.3f * fbm(p * 0.05f) + 0.1f * fbm(p * 0.093f) +
-                           0.05f * fbm(p * 0.041f));
+  den = glm::max(0.0f, den - 0.3f * fbm(p * 0.05f, clouds_texture) + 0.1f * fbm(p * 0.093f, clouds_texture) +
+                           0.05f * fbm(p * 0.041f, clouds_texture));
   return largeWeather * 0.2f * glm::min(1.0f, 5.0f * den);
 }
 
@@ -205,7 +181,7 @@ __device__ glm::vec3 skyRay(glm::vec3 org, glm::vec3 dir,
   const float ATM_START = EARTH_RADIUS + CLOUD_START;
   const float ATM_END = ATM_START + CLOUD_HEIGHT;
 
-  int nbSample = 1024;
+  int nbSample = 512;
   glm::vec3 color = glm::vec3(0.0);
   float distToAtmStart =
       intersectSphere(org, dir, glm::vec3(0.0, -EARTH_RADIUS, 0.0), ATM_START);
@@ -247,7 +223,7 @@ __device__ glm::vec3 skyRay(glm::vec3 org, glm::vec3 dir,
                 dir;
   color +=
       T * glm::vec3(3.0) *
-      glm::max(0.0f, fbm(glm::vec3(1.0f, 1.0f, 1.8f) * pC * 0.002f) - 0.4f);
+      glm::max(0.0f, fbm(glm::vec3(1.0f, 1.0f, 1.8f) * pC * 0.002f, clouds_texture) - 0.4f);
   glm::vec3 background =
       6.0f * glm::mix(glm::vec3(0.2f, 0.52f, 1.0f),
                       glm::vec3(0.8f, 0.95f, 1.0f),
@@ -328,11 +304,7 @@ __global__ void render(cudaSurfaceObject_t out_surface, cudaTextureObject_t clou
   output.z = col.b;
   output.w = 1.0f;
 
-  {
-    float4 cl;
-    cl = tex2D<float4>(clouds_texture, du, dv);
-    output.x = cl.x * 2.0f;
-  }
+  //output.x = tex2D<float4>(clouds_texture, glm::mod((float)(du) * 3.0f, 1.0f), glm::mod((float)(dv) * 6.0f, 1.0f)).x;
 
   surf2Dwrite(output, out_surface, c * sizeof(float4), r);
 }

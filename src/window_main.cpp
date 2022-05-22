@@ -88,8 +88,8 @@ WindowMain::WindowMain() {
   io.Fonts->AddFontFromFileTTF("assets/iosevka-aile-medium.ttf", 14.0f);
 
   ImGui_ImplOpenGL3_NewFrame();
-  render_texture = std::make_unique<Texture>(640, 480);
-  clouds_texture = std::make_unique<Texture>(2048, 2048);
+  render_texture = std::make_unique<Texture>(480, 480, Texture::Format::RGBA);
+  clouds_texture = std::make_unique<Texture>(64, 64, Texture::Format::Gray);
 }
 
 void WindowMain::render() {
