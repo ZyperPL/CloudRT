@@ -1,0 +1,18 @@
+import requests
+
+url = 'https://www.meteoblue.com/en/server/search/query3'
+
+def get_location(query: str):
+    params = { 
+        'query': query,
+        'page': 1,
+        'itemsPerPage': 1
+    }
+    try:
+        res = requests.get(url, params=params)
+        return res
+    except Exception as exception:
+        print(exception)
+
+    return None
+
