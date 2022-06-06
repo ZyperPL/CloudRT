@@ -13,14 +13,20 @@ def get_weather():
     lat = request.args.get('lat', 0.0)
     lon = request.args.get('lon', 0.0)
 
+    location_res = None
     if 'location' in request.args:
         location_res = api.location.get_location(request.args.get('location'))
-        if location_res and location_res.status_code == 200:
-            location_json = location_res.json()['results'][0]
-            lon = location_json['lon']
-            lat = location_json['lat']
+    else:
+        location_res = api.location.get_location("") # auto
+    
+    if location_res and location_res.status_code == 200:
+        location_json = location_res.json()['results'][0]
+        lon = location_json['lon']
+        lat = location_json['lat']
+    
 
     res = api.weather.get_weather(lat, lon)
+
     code = 0
     if res:
         code = res.status_code
