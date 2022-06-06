@@ -19,7 +19,6 @@ ENDIF()
 SET(JSON_BuildTests OFF CACHE INTERNAL "")
 ADD_SUBDIRECTORY(src/external/json)
 
-
 INCLUDE_DIRECTORIES("src/" "src/external" "src/external/glm" "src/external/imgui" "src/external/imgui/backends")
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
@@ -32,7 +31,7 @@ ADD_COMPILE_OPTIONS(-fPIC -Wall -Wextra)
 
 FILE(GLOB SOURCES "src/*.cu" "src/*.cpp" "src/external/imgui/backends/imgui_impl_glfw.cpp" "src/external/imgui/backends/imgui_impl_opengl3.cpp" "src/external/imgui/*.cpp")
 ADD_EXECUTABLE(${NAME} "${SOURCES}")
-TARGET_LINK_LIBRARIES(${NAME} PRIVATE stdc++ pthread GLEW GL glfw)
+TARGET_LINK_LIBRARIES(${NAME} PRIVATE stdc++ pthread GLEW GL glfw nlohmann_json::nlohmann_json curl)
 
 ADD_CUSTOM_TARGET(run
   COMMAND build/${NAME}

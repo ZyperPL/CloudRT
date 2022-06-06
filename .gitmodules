@@ -7,3 +7,6 @@
 [submodule "src/external/json"]
 	path = src/external/json
 	url = https://github.com/nlohmann/json
+[submodule "src/external/par"]
+	path = src/external/par
+	url = https://github.com/prideout/par

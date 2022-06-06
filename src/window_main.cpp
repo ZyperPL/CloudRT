@@ -22,6 +22,9 @@
 #include "render.hpp"
 #include "texture.hpp"
 
+#define PAR_EASYCURL_IMPLEMENTATION
+#include "par/par_easycurl.h"
+
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW error %d: %s\n", error, description);
 }
@@ -90,6 +93,19 @@ WindowMain::WindowMain() {
   ImGui_ImplOpenGL3_NewFrame();
   render_texture = std::make_unique<Texture>(480, 480, Texture::Format::RGBA);
   clouds_texture = std::make_unique<Texture>(64, 64, Texture::Format::Gray);
+
+  par_easycurl_init(0);
+
+  int data_size = 1024*4;
+  par_byte *data = new par_byte[data_size];
+  int r = par_easycurl_to_memory("localhost:5000/weather", &data, &data_size);
+  assert(r == 1);
+  data[data_size+1] = '\0';
+
+  nlohmann::json j = nlohmann::json::parse(data);
+  printf("%s\n", j.dump().c_str());
+
+  delete[] data;
 }
 
 void WindowMain::render() {
