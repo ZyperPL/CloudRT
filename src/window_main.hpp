@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <nlohmann/json.hpp>
 
 struct GLFWwindow;
 class Texture;

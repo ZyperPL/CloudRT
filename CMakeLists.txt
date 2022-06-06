@@ -15,6 +15,11 @@ IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE "Debug")
 ENDIF()
 
+# submodules
+SET(JSON_BuildTests OFF CACHE INTERNAL "")
+ADD_SUBDIRECTORY(src/external/json)
+
+
 INCLUDE_DIRECTORIES("src/" "src/external" "src/external/glm" "src/external/imgui" "src/external/imgui/backends")
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
