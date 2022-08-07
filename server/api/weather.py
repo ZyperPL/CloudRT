@@ -12,9 +12,10 @@ def get_weather(lat: float, lon: float):
         'temperature': 'C',
         'history_days': 0,
         'forecast_days': 1,
-        'apikey': 'lKTDgMnsQyw8FS4r'
+        'apikey': 'gIPetsMKaXE7mJod'
     }
     try:
+        print(f"Making request to {url_1h}...")
         res = requests.get(url_1h, params=params)
         return res
     except Exception as exception:

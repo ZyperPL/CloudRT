@@ -2,6 +2,8 @@ from flask import Flask, request
 import api.location
 import api.weather
 import json 
+import datetime
+from cache import Cache
 
 ERROR_EXTERNAL_CONNECTION_FAILED = -1
 ERROR_LOCATION_NOT_FOUND = -2
@@ -24,15 +26,29 @@ def get_weather():
         lon = location_json['lon']
         lat = location_json['lat']
     
+    res_json = None
+    cache_entry = Cache.get(lat, lon)
+    if cache_entry:
+        res_json = cache_entry.data
 
-    res = api.weather.get_weather(lat, lon)
+    if res_json is None:
+        res = api.weather.get_weather(lat, lon)
+        code = 0
+        if res:
+            code = res.status_code
+            
+            if res.status_code == 200:
+                res_json = res.json()
+                if res_json:
+                   Cache.add(lat, lon, res_json)
+            else:
+                cache_entry = Cache.force_get(lat, lon)
+                if cache_entry:
+                    res_json = cache_entry.data
 
-    code = 0
-    if res:
-        code = res.status_code
 
-    if res is not None and res.status_code == 200:
-        return res.json()
+    if res_json is not None:
+        return res_json
 
     return json.dumps({ 'error': code })
 
