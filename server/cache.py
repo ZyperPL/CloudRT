@@ -19,7 +19,9 @@ class Cache:
 
     def load():
         def unmap_entry(ej):
-            return CacheEntry(ej['lat'], ej['lon'], ej['data'])
+            entry = CacheEntry(ej['lat'], ej['lon'], ej['data'])
+            entry.timestamp = ej['timestamp']
+            return entry
 
         print("Loading data...\n")
         Cache.CACHE = {}
