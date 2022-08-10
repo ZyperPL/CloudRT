@@ -88,7 +88,16 @@ WindowMain::WindowMain() {
   ImGui_ImplGlfw_InitForOpenGL(handle, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
 
-  io.Fonts->AddFontFromFileTTF("assets/iosevka-aile-medium.ttf", 14.0f);
+  ImVector<ImWchar> ranges;
+  ImFontGlyphRangesBuilder builder;
+  builder.AddRanges(io.Fonts->GetGlyphRangesDefault());
+  builder.AddText("zażółć gęślą jaźń");
+  builder.BuildRanges(&ranges);                          
+  io.Fonts->AddFontFromFileTTF("assets/iosevka-aile-medium.ttf", 14.0f, NULL, ranges.Data);
+
+  io.AddInputCharactersUTF8("zażółć gęślą jaźń");
+
+  io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
 
   ImGui_ImplOpenGL3_NewFrame();
   render_texture = std::make_unique<Texture>(480, 480, Texture::Format::RGBA);
