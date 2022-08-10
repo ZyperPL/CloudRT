@@ -6,7 +6,7 @@ def get_location(query: str):
     params = { 
         'query': query,
         'page': 1,
-        'itemsPerPage': 1
+        'itemsPerPage': 5
     }
     try:
         res = requests.get(url, params=params)

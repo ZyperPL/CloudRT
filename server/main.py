@@ -53,20 +53,31 @@ def get_weather():
     return json.dumps({ 'error': code })
 
 
+LOCATION_CACHE = {}
+
 @app.route('/location', methods=['GET'])
 def get_location():
+    print(request.args)
     query = request.args.get('query', "")
-    res = api.location.get_location(query)
-    code = 0
-    if res:
-        code = res.status_code
+    print(f"Query: {query}")
+    cached_locations = LOCATION_CACHE.get(query, None)
+    if not cached_locations:
+        res = api.location.get_location(query)
+        code = 0
+        if res:
+            code = res.status_code
 
-    if res is not None and res.status_code == 200:
-        res_json = res.json()
-        if res_json['count'] <= 0:
-            return json.dumps({ 'error': ERROR_LOCATION_NOT_FOUND })
-        return res_json['results'][0]
+        if res is not None and res.status_code == 200:
+            res_json = res.json()
+            count = res_json['count']
+            if count <= 0:
+                return json.dumps({ 'error': ERROR_LOCATION_NOT_FOUND })
+            LOCATION_CACHE[query] = res_json
+            return res_json
 
-    if code == 0:
-        code = ERROR_EXTERNAL_CONNECTION_FAILED
-    return json.dumps({ 'error': code })
+        if code == 0:
+            code = ERROR_EXTERNAL_CONNECTION_FAILED
+        return json.dumps({ 'error': code })
+
+    print(f"Query {query} found in cache.")
+    return cached_locations
