@@ -10,12 +10,15 @@ def get_weather(lat: float, lon: float):
         'tz': 'Europe/Warsaw',
         'format': 'json',
         'temperature': 'C',
-        'history_days': 0,
-        'forecast_days': 1,
+        'history_days': 3,
+        'forecast_days': 7,
+        'timeformat': 'timestamp_utc',
         'apikey': 'gIPetsMKaXE7mJod'
     }
     try:
-        print(f"Making request to {url_1h}...")
+        params_safe = params.copy()
+        params_safe['apikey'] = 'X'*15
+        print(f"Making request to {url_1h} params={params_safe}...")
         res = requests.get(url_1h, params=params)
         return res
     except Exception as exception:

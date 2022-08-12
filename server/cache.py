@@ -12,6 +12,8 @@ class CacheEntry:
         self.timestamp = datetime.timestamp(datetime.today())
 
     def valid(self, other_ts):
+        delta = other_ts - self.timestamp
+        print(f"Delta time: {delta} ({other_ts} - {self.timestamp})")
         return abs(other_ts - self.timestamp) < CacheEntry.TIMESTAMP_DELTA
 
 class Cache:
