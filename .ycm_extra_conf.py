@@ -9,6 +9,7 @@ flags = [
     '-I./src/external/glm/',
     '-I./src/external/imgui/',
     '-I./src/external/imgui/backends/',
+    '-I./src/external/json/include',
     '-I./include/',
     '-Wall',
     '-Wextra',
