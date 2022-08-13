@@ -23,7 +23,7 @@ INCLUDE_DIRECTORIES("src/" "src/external" "src/external/glm" "src/external/imgui
 
 ADD_DEFINITIONS(-DNAME="${NAME}")
 
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -DDEBUG -ggdb")
+SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -DDEBUG -ggdb -std=c++20")
 SET(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -O3 -s -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 SET(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --diag-suppress 20012,20014")

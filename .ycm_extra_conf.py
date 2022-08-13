@@ -13,12 +13,11 @@ flags = [
     '-I./include/',
     '-Wall',
     '-Wextra',
-    '-std=c++20',
+    '-std=c++17',
     '-U__CUDACC__',
     '--cuda-path=/opt/cuda',
     '-arch=sm_20',
-    '--x cu',
-    '-std=c++17'
+    '--x cu'
 ]
 
 
