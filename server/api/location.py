@@ -9,7 +9,7 @@ def get_location(query: str):
         'itemsPerPage': 8
     }
     try:
-        print(f"Making request to {url}...")
+        print(f"Making request to {url} params={params}...")
         res = requests.get(url, params=params)
         return res
     except Exception as exception:
