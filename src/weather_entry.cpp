@@ -39,7 +39,7 @@ WeatherEntry::WeatherEntry(nlohmann::json json, std::string name) : name{name} {
 
     load_data("time", timestamps, 0);
     load_data("winddirection_80m", winddirection, 0);
-    load_data("windspeed_80m", windspeed, 0);
+    load_data("windspeed_80m", windspeed, 0.0);
     load_data("surfaceairpressure", surfaceairpressure, 0.0);
     load_data("lowclouds", lowclouds, 0.0);
     load_data("midclouds", midclouds, 0.0);
