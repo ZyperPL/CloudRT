@@ -15,7 +15,7 @@ public:
 
   const int &get_modelrun_timestamp() const { return modelrun_timestamp; }
 
-  const std::vector<int> &get_timestamps() const { return timestamps; }
+  const std::vector<long int> &get_timestamps() const { return timestamps; }
   const std::vector<int> &get_winddirection() const { return winddirection; }
 
   const std::vector<double> &get_windspeed() const { return windspeed; }
@@ -28,13 +28,15 @@ public:
   const std::vector<double> &get_cloudwater() const { return cloudwater; }
   const std::vector<double> &get_cloudice() const { return cloudice; }
 
+  size_t count() const { return timestamps.size(); }
+
 private:
   std::string name;
   double latitude;
   double longitude;
   double height;
   int modelrun_timestamp;
-  std::vector<int> timestamps;
+  std::vector<long int> timestamps;
   std::vector<int> winddirection;
   std::vector<double> windspeed;
   std::vector<double> surfaceairpressure;

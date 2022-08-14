@@ -18,13 +18,6 @@ WeatherEntry::WeatherEntry(nlohmann::json json, std::string name) : name{name} {
     assert(!json.contains("metadata"));
   }
 
-  const auto t = data["time"][0].get<const long int>();
-
-  auto time = std::gmtime(&t);
-  printf("Loading entry starting at %02d:%02d:%02d %d.%02d.%04d\n",
-         time->tm_hour, time->tm_min, time->tm_sec, time->tm_mday,
-         time->tm_mon + 1, time->tm_year + 1900);
-
   const size_t count = data["time"].size();
   for (size_t i = 0; i < count; ++i) {
     const auto load_data = [&data, &i](const std::string key, auto &container,
@@ -37,14 +30,18 @@ WeatherEntry::WeatherEntry(nlohmann::json json, std::string name) : name{name} {
       }
     };
 
-    load_data("time", timestamps, 0);
-    load_data("winddirection_80m", winddirection, 0);
-    load_data("windspeed_80m", windspeed, 0.0);
-    load_data("surfaceairpressure", surfaceairpressure, 0.0);
-    load_data("lowclouds", lowclouds, 0.0);
-    load_data("midclouds", midclouds, 0.0);
-    load_data("highclouds", highclouds, 0.0);
-    load_data("cloudice", cloudice, 0.0);
-    load_data("cloudwater", cloudwater, 0.0);
+    const long int DEFAULT_TIMESTAMP = 0;
+    const int DEFAULT_INT = 0;
+    const double DEFAULT_DOUBLE = 0.0;
+
+    load_data("time", timestamps, DEFAULT_TIMESTAMP);
+    load_data("winddirection_80m", winddirection, DEFAULT_INT);
+    load_data("windspeed_80m", windspeed, DEFAULT_DOUBLE);
+    load_data("surfaceairpressure", surfaceairpressure, DEFAULT_DOUBLE);
+    load_data("lowclouds", lowclouds, DEFAULT_DOUBLE);
+    load_data("midclouds", midclouds, DEFAULT_DOUBLE);
+    load_data("highclouds", highclouds, DEFAULT_DOUBLE);
+    load_data("cloudice", cloudice, DEFAULT_DOUBLE);
+    load_data("cloudwater", cloudwater, DEFAULT_DOUBLE);
   }
 }
