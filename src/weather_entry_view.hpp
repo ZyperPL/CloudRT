@@ -4,7 +4,6 @@
 
 class WeatherEntry;
 
-namespace View {
 class WeatherEntryView {
 public:
   void set_model(std::shared_ptr<WeatherEntry>);
@@ -13,4 +12,3 @@ public:
 private:
   std::shared_ptr<WeatherEntry> model;
 };
-}; // namespace View

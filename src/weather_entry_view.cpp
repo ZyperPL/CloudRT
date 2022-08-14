@@ -3,7 +3,6 @@
 
 #include "imgui.h"
 
-namespace View {
 void WeatherEntryView::set_model(std::shared_ptr<WeatherEntry> model) 
 {
   this->model = std::move(model);
@@ -37,7 +36,3 @@ void WeatherEntryView::render_ui()
   list_box_data(model->get_cloudice(), "Cloud ice", "%5.1f g");
   list_box_data(model->get_surfaceairpressure(), "Surface air pressure", "%5f hPa");
 }
-
-
-
-} // namespace View
