@@ -21,6 +21,7 @@ struct RenderParameters
   glm::vec3 light_position;
   glm::vec3 light_color;
   float time;
+  float density;
 };
 
 void launch_render(Texture &out_texture, Texture &clouds_texture, RenderParameters parameters);
