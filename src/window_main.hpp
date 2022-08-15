@@ -3,6 +3,10 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
+#include "datetime_controller.hpp"
+#include "location_controller.hpp"
+#include "weather_entry_view.hpp"
+
 struct GLFWwindow;
 class Texture;
 
@@ -17,4 +21,8 @@ private:
   GLFWwindow *handle{nullptr};
   std::unique_ptr<Texture> render_texture;
   std::unique_ptr<Texture> clouds_texture;
+
+  WeatherEntryView weather_entry_view;
+  DateTimeController date_time_controller;
+  LocationController location_controller;
 };
