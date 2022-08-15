@@ -2,7 +2,12 @@
 
 #include "glm/gtc/noise.hpp"
 
-#define surface_type float1
+#define surface_type float4
+
+__device__ float remap(float x, float a, float b, float c, float d)
+{
+    return (((x - a) / (b - a)) * (d - c)) + c;
+}
 
 __device__ float perlin(const glm::vec3 &pos, float frequency,
                         int octaveCount) {
@@ -44,11 +49,23 @@ __global__ void render(cudaSurfaceObject_t surface, CloudsRenderParameters param
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
 
+  glm::vec4 col2 = glm::vec4(
+      perlin(glm::vec3(parameters.position.x * 3.12f + du, parameters.position.y * 341.f + dv,
+                       parameters.position.z),
+             parameters.frequency, parameters.octaves));
+
+  glm::vec4 col3 = glm::vec4(
+      perlin(glm::vec3(parameters.position.x * 0.513f + du, parameters.position.y * 0.134f + dv,
+                       parameters.position.z),
+             parameters.frequency, parameters.octaves));
+
   surface_type output;
-  output.x = col.r;
+  output.x = remap(col.r, parameters.low_cut, parameters.high_cut, 0.0f, 1.0f);
+  output.y = remap(col2.g, parameters.low_cut, parameters.high_cut, 0.0f, 1.0f);
+  output.z = remap(col3.b, parameters.low_cut, parameters.high_cut, 0.0f, 1.0f);
   //output.y = col.g;
   //output.z = col.b;
-  //output.w = 1.0f;
+  output.w = 1.0f;
 
   surf2Dwrite(output, surface, c * sizeof(surface_type), r);
 }

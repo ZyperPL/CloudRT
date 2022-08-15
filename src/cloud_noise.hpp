@@ -19,6 +19,8 @@ struct CloudsRenderParameters
   float frequency;
   float octaves;
   float time;
+  float low_cut;
+  float high_cut;
 };
 
 
