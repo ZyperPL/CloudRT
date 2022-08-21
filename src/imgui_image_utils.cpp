@@ -2,13 +2,20 @@
 
 namespace ImGui {
 void Image(Texture &texture) {
-  ImVec2 avail_size = ImGui::GetContentRegionAvail();
-  if (avail_size.x < avail_size.y)
-    avail_size =
-        ImVec2(avail_size.x, avail_size.x * (texture.get_aspect_ratio()));
-  else
-    avail_size = ImVec2(avail_size.y * (1.0f / texture.get_aspect_ratio()),
-                        avail_size.y);
-  ImGui::Image((void *)(intptr_t)texture.get_id(), avail_size);
+  ImVec2 asize = ImGui::GetContentRegionAvail();
+  asize.x -= 50.0f;
+  asize.y -= 60.0f;
+  ImVec2 nsize = asize;
+
+  const float aspect = texture.get_aspect_ratio();
+  const float inv_aspect = 1.0f / texture.get_aspect_ratio();
+
+  nsize.y = asize.x * inv_aspect;
+  if (nsize.y > asize.y) {
+    nsize.y = asize.y;
+    nsize.x = asize.y * aspect;
+  }
+
+  ImGui::Image((void *)(intptr_t)texture.get_id(), nsize);
 }
 } // namespace ImGui
