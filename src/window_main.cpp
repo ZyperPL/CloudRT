@@ -258,6 +258,10 @@ void WindowMain::render() {
   ImGui::NewFrame();
 
   static bool show_demo_window = false;
+  static bool debug_enabled = false;
+  static bool show_status_window = false;
+  static bool show_help_window = false;
+  static bool show_authors_window = false;
 
   const ImGuiWindowFlags window_flags =
       ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking |
@@ -280,17 +284,79 @@ void WindowMain::render() {
     ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
   }
   if (ImGui::BeginMenuBar()) {
+    if (ImGui::BeginMenu("File")) {
+      ImGui::Separator();
+      if (ImGui::MenuItem("Save as image...")) {
+        // TODO
+      }
+      if (ImGui::MenuItem("Exit"))
+        glfwSetWindowShouldClose(handle, GLFW_TRUE);
+      ImGui::EndMenu();
+    }
+
     if (ImGui::BeginMenu("Options")) {
       ImGui::Separator();
-      ImGui::MenuItem("Test");
-      if (ImGui::MenuItem("Show Demo Window", "", show_demo_window))
-        show_demo_window = !show_demo_window;
+      if (ImGui::MenuItem("Enable debug", "", debug_enabled))
+        debug_enabled = !debug_enabled;
       ImGui::Separator();
       ImGui::EndMenu();
     }
+
+    if (ImGui::BeginMenu("Utilities")) {
+      ImGui::Separator();
+      if (ImGui::MenuItem("Show GUI demo window", "", show_demo_window))
+        show_demo_window = !show_demo_window;
+      if (ImGui::MenuItem("Show status window", "", show_status_window))
+        show_status_window = !show_status_window;
+      ImGui::Separator();
+      ImGui::EndMenu();
+    }
+
+    if (ImGui::BeginMenu("About")) {
+      ImGui::Separator();
+      if (ImGui::MenuItem("Help"))
+        show_help_window = true;
+
+      if (ImGui::MenuItem("Authors"))
+        show_authors_window = true;
+      ImGui::Separator();
+      ImGui::EndMenu();
+    }
+
     ImGui::EndMenuBar();
   }
+
   ImGui::End();
+
+  if (show_help_window) {
+    ImGui::OpenPopup("Help");
+    show_help_window = false;
+  }
+
+  if (show_authors_window) {
+    ImGui::OpenPopup("Author");
+    show_authors_window = false;
+  }
+
+  if (ImGui::BeginPopupModal("Help", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::Text("1. Type location query in Location Window");
+    ImGui::Text("2. Clouds are rendered in the Render Window");
+    ImGui::Text("3. Change time and day in the Date & Time Window");
+    ImGui::Text("4. Save an image via File menu");
+
+    if (ImGui::Button("OK"))
+      ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
+  if (ImGui::BeginPopupModal("Author", NULL,
+                             ImGuiWindowFlags_AlwaysAutoResize)) {
+    ImGui::Text("Application created by:");
+    ImGui::Text("Kacper Zybała (C) 2022");
+
+    if (ImGui::Button("OK"))
+      ImGui::CloseCurrentPopup();
+    ImGui::EndPopup();
+  }
 
   if (show_demo_window)
     ImGui::ShowDemoWindow(&show_demo_window);
@@ -310,69 +376,74 @@ void WindowMain::render() {
     date_time_controller.execute();
   ImGui::End();
 
-  ImGui::Begin("Parameters");
-  ImGui::Text("Render parameters");
-
-  static float t = 0.0f;
-  t += 0.01f;
-  ImGui::Text("Time: %f\n", t);
-
-  static glm::vec3 camera_position(20.0f, 18.0f, -50.0f);
-  ImGui::DragFloat3("Camera position", glm::value_ptr(camera_position), 1.0f,
-                    -100.0f, 100.0f);
-
-  static glm::vec3 light_position(0.0f, 0.0f, 0.0f);
-  ImGui::DragFloat3("Light position", glm::value_ptr(light_position), 1.0f,
-                    -100.0f, 100.0f);
-
-  static glm::vec3 light_color(0.0f, 0.0f, 0.0f);
-  ImGui::DragFloat3("Light color", glm::value_ptr(light_color), 1000.0f, 900.0f,
-                    850.0f);
-
+  // render params
   static float density = 1.0f;
-  ImGui::SliderFloat("Density", &density, 0.0f, 1.0f);
 
-  ImGui::End();
+  // cloud params
+  static float frequency = 4.0f;
+  static float octaves = 6.0f;
+  static float low_cut = 0.35f;
+  static float high_cut = 1.0f;
+  static glm::vec3 noise_pos(0.0f, 0.0f, 0.0f);
 
-  ImGui::Begin("Clouds");
-  if (clouds_texture) {
-    static float frequency = 4.0f;
-    static float octaves = 6.0f;
-    static float low_cut = 0.35f;
-    static float high_cut = 1.0f;
-    ImGui::DragFloat("Frequency", &frequency);
-    ImGui::DragFloat("Octaves", &octaves);
-    ImGui::DragFloat("Low cut", &low_cut, 0.05f, 0.0f, 1.0f);
-    ImGui::DragFloat("High cut", &high_cut, 0.05f, 0.0f, 1.0f);
+  CloudsRenderParameters clouds_parameters;
+  clouds_parameters.position = noise_pos;
+  clouds_parameters.width = clouds_texture->get_width();
+  clouds_parameters.height = clouds_texture->get_height();
+  clouds_parameters.time = 1.0f;
+  clouds_parameters.frequency = frequency;
+  clouds_parameters.octaves = octaves;
+  clouds_parameters.low_cut = low_cut;
+  clouds_parameters.high_cut = high_cut;
+  generate_cloud_noise(*clouds_texture, clouds_parameters);
 
-    static glm::vec3 noise_pos(0.0f, 0.0f, 0.0f);
-    ImGui::DragFloat3("Position", glm::value_ptr(noise_pos), 0.001f, 0.0f,
-                      100.0f);
+  if (debug_enabled) {
+    if (ImGui::Begin("Parameters")) {
+      ImGui::Text("Render parameters");
 
-    CloudsRenderParameters clouds_parameters;
-    clouds_parameters.position = noise_pos;
-    clouds_parameters.width = clouds_texture->get_width();
-    clouds_parameters.height = clouds_texture->get_height();
-    clouds_parameters.time = t;
-    clouds_parameters.frequency = frequency;
-    clouds_parameters.octaves = octaves;
-    clouds_parameters.low_cut = low_cut;
-    clouds_parameters.high_cut = high_cut;
-    generate_cloud_noise(*clouds_texture, clouds_parameters);
+      static glm::vec3 camera_position(20.0f, 18.0f, -50.0f);
+      ImGui::DragFloat3("Camera position", glm::value_ptr(camera_position),
+                        1.0f, -100.0f, 100.0f);
 
-    ImGui::Image(*clouds_texture.get());
+      static glm::vec3 light_position(0.0f, 0.0f, 0.0f);
+      ImGui::DragFloat3("Light position", glm::value_ptr(light_position), 1.0f,
+                        -100.0f, 100.0f);
+
+      static glm::vec3 light_color(0.0f, 0.0f, 0.0f);
+      ImGui::DragFloat3("Light color", glm::value_ptr(light_color), 1000.0f,
+                        900.0f, 850.0f);
+
+      ImGui::SliderFloat("Density", &density, 0.0f, 1.0f);
+    }
+    ImGui::End();
+
+    if (ImGui::Begin("Clouds")) {
+      ImGui::DragFloat("Frequency", &frequency);
+      ImGui::DragFloat("Octaves", &octaves);
+      ImGui::DragFloat("Low cut", &low_cut, 0.05f, 0.0f, 1.0f);
+      ImGui::DragFloat("High cut", &high_cut, 0.05f, 0.0f, 1.0f);
+
+      ImGui::DragFloat3("Position", glm::value_ptr(noise_pos), 0.001f, 0.0f,
+                        100.0f);
+
+      if (clouds_texture) {
+        ImGui::Image(*clouds_texture.get());
+      }
+    }
+    ImGui::End();
   }
-  ImGui::End();
 
   if (ImGui::Begin("Render")) {
     if (render_texture && clouds_texture) {
       RenderParameters parameters;
       parameters.width = render_texture->get_width();
       parameters.height = render_texture->get_height();
-      parameters.time = t;
-      parameters.camera_position = camera_position;
-      parameters.light_position = light_position;
-      parameters.light_color = light_color;
+      parameters.time = 1.0f;
+      parameters.camera_position; // TODO;
+      parameters.light_position;
+      ;
+      parameters.light_color;
+      ;
       parameters.density = density;
       launch_render(*render_texture, *clouds_texture, parameters);
       ImGui::Text("size = %zu x %zu", render_texture->get_width(),
