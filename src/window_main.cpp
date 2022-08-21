@@ -25,6 +25,8 @@
 
 #include "weather_entry_view.hpp"
 
+#include "imgui_image_utils.hpp"
+
 static void glfw_error_callback(int error, const char *description) {
   fprintf(stderr, "GLFW error %d: %s\n", error, description);
 }
@@ -357,21 +359,8 @@ void WindowMain::render() {
     clouds_parameters.low_cut = low_cut;
     clouds_parameters.high_cut = high_cut;
     generate_cloud_noise(*clouds_texture, clouds_parameters);
-    ImVec2 avail_size = ImGui::GetContentRegionAvail();
-    ImGui::Text("Size before correction: %f x %f\n", avail_size.x,
-                avail_size.y);
-    if (avail_size.x < avail_size.y)
-      avail_size = ImVec2(avail_size.x,
-                          avail_size.x * (clouds_texture->get_aspect_ratio()));
-    else
-      avail_size =
-          ImVec2(avail_size.y * (1.0f / clouds_texture->get_aspect_ratio()),
-                 avail_size.y);
-    ImGui::Text("Aspect ratio: %f\n", clouds_texture->get_aspect_ratio());
-    ImGui::Text("Size  after correction: %f x %f\n", avail_size.x,
-                avail_size.y);
 
-    ImGui::Image((void *)(intptr_t)clouds_texture->get_id(), avail_size);
+    ImGui::Image(*clouds_texture.get());
   }
   ImGui::End();
 
@@ -389,9 +378,7 @@ void WindowMain::render() {
       ImGui::Text("size = %zu x %zu", render_texture->get_width(),
                   render_texture->get_height());
 
-      ImGui::Image(
-          (void *)(intptr_t)render_texture->get_id(),
-          ImVec2(render_texture->get_width(), render_texture->get_height()));
+      ImGui::Image(*render_texture.get());
     } else {
       ImGui::Text("Render texture not defined!");
     }

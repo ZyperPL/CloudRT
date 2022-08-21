@@ -35,7 +35,10 @@ void DateTimeController::onPreviousDayButtonPressed() {
   if (selected_index >= 24)
     selected_index -= 24;
 }
-void DateTimeController::onTodayButtonPressed() { selected_index = 4 + 24 * 4; }
+void DateTimeController::onTodayButtonPressed() { 
+  //TODO: make setting "today" more precise
+  selected_index = 4 + 24 * 4; 
+}
 void DateTimeController::onTimeSliderChanged(size_t offset) {
   selected_index += offset;
 }
