@@ -2,21 +2,24 @@
 
 const size_t LocationView::MAX_INPUT_STRING_SIZE = 2048;
 
+LocationView::LocationView(LocationViewObserver *observer)
+    : observer{observer} {}
+
 void LocationView::locations_list(const std::vector<std::string> &names,
-                                  const ssize_t selected_index,
-                                  ssize_t &clicked_index) {
+                                  const ssize_t selected_index) {
   if (ImGui::BeginListBox("##locationslistbox")) {
     for (size_t name_idx = 0; name_idx < names.size(); ++name_idx) {
       ImGui::PushID(name_idx);
       const bool is_selected =
           (static_cast<size_t>(selected_index) == name_idx);
       if (ImGui::Selectable(names[name_idx].c_str(), is_selected)) {
-        clicked_index = name_idx;
+        if (observer)
+          observer->onLocationSelected(name_idx);
       }
       ImGui::PopID();
     }
+    ImGui::EndListBox();
   }
-  ImGui::EndListBox();
 }
 
 std::string LocationView::construct_name_string(nlohmann::json json_object) {
@@ -36,7 +39,7 @@ std::string LocationView::construct_name_string(nlohmann::json json_object) {
   return name;
 }
 
-std::optional<std::string> LocationView::get_location_input() {
+void LocationView::location_input() {
   const char *LOCATION_HINT = "Type location name";
   input_location_string.resize(MAX_INPUT_STRING_SIZE, '\0');
   ImGui::InputTextWithHint("Location", LOCATION_HINT,
@@ -49,14 +52,12 @@ std::optional<std::string> LocationView::get_location_input() {
 
   if (has_new_string_input) {
     previous_input_location_string = input_location_string;
-    return input_location_string;
+    if (observer)
+      observer->onLocationInputTextChanged(input_location_string);
   }
-
-  return {};
 }
 
-bool LocationView::location_button(std::string location_name) {
-  bool pressed = false;
+void LocationView::location_button(std::string location_name) {
   if (ImGui::Button(location_name.c_str())) {
 
     std::string selected_location_name = location_name;
@@ -64,8 +65,7 @@ bool LocationView::location_button(std::string location_name) {
         selected_location_name.substr(0, selected_location_name.find(","));
     input_location_string.resize(MAX_INPUT_STRING_SIZE, '\0');
     input_location_string = selected_location_name;
-    pressed = true;
+    if (observer)
+      observer->onButtonPressed();
   }
-
-  return pressed;
 }

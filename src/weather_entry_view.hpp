@@ -6,9 +6,7 @@ class WeatherEntry;
 
 class WeatherEntryView {
 public:
-  void set_model(std::shared_ptr<WeatherEntry>);
-  void render_ui();
+  void render_ui(std::shared_ptr<WeatherEntry>);
 
 private:
-  std::shared_ptr<WeatherEntry> model;
 };

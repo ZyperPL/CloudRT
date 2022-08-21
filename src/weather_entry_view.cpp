@@ -3,11 +3,7 @@
 
 #include "imgui.h"
 
-void WeatherEntryView::set_model(std::shared_ptr<WeatherEntry> model) {
-  this->model = std::move(model);
-}
-
-void WeatherEntryView::render_ui() {
+void WeatherEntryView::render_ui(std::shared_ptr<WeatherEntry> model) {
   assert(model);
 
   auto list_box_data = [](auto &container, std::string label,

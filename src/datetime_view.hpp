@@ -2,14 +2,15 @@
 
 #include "imgui.h"
 
+#include "datetime_view_observer.hpp"
 #include "weather_entry.hpp"
 
 class DateTimeView {
 public:
-  void set_entry(std::shared_ptr<WeatherEntry> entry);
-  void date_ui(ssize_t &selected_index);
-  void time_ui(ssize_t &selected_index);
+  DateTimeView(DateTimeViewObserver *observer);
+  void date_ui(std::shared_ptr<WeatherEntry>, ssize_t &selected_index);
+  void time_ui(std::shared_ptr<WeatherEntry>, ssize_t &selected_index);
 
 private:
-  std::shared_ptr<WeatherEntry> entry;
+  DateTimeViewObserver *observer{nullptr};
 };
