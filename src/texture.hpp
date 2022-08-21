@@ -30,6 +30,9 @@ public:
   size_t get_width() const { return width; }
   size_t get_height() const { return height; }
   Format get_format() const { return format; }
+  float get_aspect_ratio() const {
+    return static_cast<float>(width) / static_cast<float>(height);
+  }
   struct cudaGraphicsResource *get_img_resource() const;
   void map_resource(cudaArray_t &arr);
   void unmap_resource();
