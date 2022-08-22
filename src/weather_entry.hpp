@@ -1,8 +1,11 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 
 #include <nlohmann/json.hpp>
+
+#include "weather_entry_section.hpp"
 
 class WeatherEntry {
 public:
@@ -29,6 +32,8 @@ public:
   const std::vector<double> &get_cloudice() const { return cloudice; }
 
   size_t count() const { return timestamps.size(); }
+
+  std::optional<WeatherEntrySection> section(size_t index);
 
 private:
   std::string name;

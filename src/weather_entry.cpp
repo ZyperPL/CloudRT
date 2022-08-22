@@ -7,7 +7,6 @@ WeatherEntry::WeatherEntry(nlohmann::json json, std::string name) : name{name} {
     return;
 
   const auto data = json["data_1h"];
-
   if (json.contains("metadata")) {
     const auto metadata = json["metadata"];
     this->latitude = metadata["latitude"].get<double>();
@@ -44,4 +43,24 @@ WeatherEntry::WeatherEntry(nlohmann::json json, std::string name) : name{name} {
     load_data("cloudice", cloudice, DEFAULT_DOUBLE);
     load_data("cloudwater", cloudwater, DEFAULT_DOUBLE);
   }
+}
+
+std::optional<WeatherEntrySection> WeatherEntry::section(size_t index) {
+  if (index >= count())
+    return {};
+
+  WeatherEntrySection sec;
+  sec.name = name;
+  sec.latitude = latitude;
+  sec.longitude = longitude;
+  sec.height = height;
+  sec.cloud_water = cloudwater[index];
+  sec.cloud_ice = cloudice[index];
+  sec.timestamp = timestamps[index];
+  sec.low_clouds = lowclouds[index];
+  sec.mid_clouds = midclouds[index];
+  sec.high_clouds = highclouds[index];
+  sec.surface_air_pressure = surfaceairpressure[index];
+
+  return sec;
 }
