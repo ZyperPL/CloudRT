@@ -22,8 +22,8 @@
 #include "render.hpp"
 #include "texture.hpp"
 #include "weather_entry.hpp"
-
 #include "weather_entry_view.hpp"
+#include "weather_entry_section_view.hpp"
 
 #include "imgui_image_utils.hpp"
 
@@ -245,8 +245,29 @@ WindowMain::WindowMain() {
 
   configure_imgui(handle);
 
-  render_texture = std::make_unique<Texture>(480, 480, Texture::Format::RGBA);
+  render_texture =
+      std::make_unique<Texture>(540 * 1.4, 540 * 1.4, Texture::Format::RGBA);
   clouds_texture = std::make_unique<Texture>(128, 128, Texture::Format::RGBA);
+
+  clouds_texture_parameters.position = glm::vec3(0.0f);
+  clouds_texture_parameters.width = clouds_texture->get_width();
+  clouds_texture_parameters.height = clouds_texture->get_height();
+  clouds_texture_parameters.time = 1.0f;
+  clouds_texture_parameters.frequency = 2.0f;
+  clouds_texture_parameters.octaves = 3.0f;
+  clouds_texture_parameters.low_cut_l = 0.1f;
+  clouds_texture_parameters.high_cut_l = 0.7f;
+  clouds_texture_parameters.low_cut_m = 0.1f;
+  clouds_texture_parameters.high_cut_m = 0.7f;
+  clouds_texture_parameters.low_cut_h = 0.1f;
+  clouds_texture_parameters.high_cut_h = 0.7f;
+
+  render_parameters.width = render_texture->get_width();
+  render_parameters.height = render_texture->get_height();
+  render_parameters.camera_position = glm::vec3(0.0f, 1.0f, -1.0f);
+  render_parameters.camera_direction = glm::vec3(0.0f, 0.2f, 0.8f);
+  render_parameters.light_direction = glm::vec3(0.6f, 0.65f, -0.8f);
+  render_parameters.density = 0.9f;
 }
 
 void WindowMain::render() {
@@ -258,7 +279,7 @@ void WindowMain::render() {
   ImGui::NewFrame();
 
   static bool show_demo_window = false;
-  static bool debug_enabled = false;
+  static bool debug_enabled = true;
   static bool show_status_window = false;
   static bool show_help_window = false;
   static bool show_authors_window = false;
@@ -338,6 +359,8 @@ void WindowMain::render() {
     show_authors_window = false;
   }
 
+  static ssize_t previous_index = -1;
+
   if (ImGui::BeginPopupModal("Help", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
     ImGui::Text("1. Type location query in Location Window");
     ImGui::Text("2. Clouds are rendered in the Render Window");
@@ -368,6 +391,8 @@ void WindowMain::render() {
 
       static WeatherEntryView *view = new WeatherEntryView();
       view->render_ui(location_controller.get_entry());
+
+      mapper.set_entry(location_controller.get_entry());
     }
   }
   ImGui::End();
@@ -376,55 +401,99 @@ void WindowMain::render() {
     date_time_controller.execute();
   ImGui::End();
 
-  // render params
-  static float density = 1.0f;
+  if (ImGui::Begin("Weather"))
+  {
+    if (location_controller.has_entry())
+    {
+      static WeatherEntrySectionView entry_section_view;
 
-  // cloud params
-  static float frequency = 4.0f;
-  static float octaves = 6.0f;
-  static float low_cut = 0.35f;
-  static float high_cut = 1.0f;
-  static glm::vec3 noise_pos(0.0f, 0.0f, 0.0f);
+      const auto &entry = location_controller.get_entry();
+      const auto index = date_time_controller.get_index();
+      if (entry && index >= 0)
+      {
+        auto section_optional = entry->section(index);
+        if (section_optional.has_value())
+          entry_section_view.render_ui(section_optional.value());
+        entry_section_view.render_range(entry, index, 12);
+      }
+    }
+  }
+  ImGui::End();
 
-  CloudsRenderParameters clouds_parameters;
-  clouds_parameters.position = noise_pos;
-  clouds_parameters.width = clouds_texture->get_width();
-  clouds_parameters.height = clouds_texture->get_height();
-  clouds_parameters.time = 1.0f;
-  clouds_parameters.frequency = frequency;
-  clouds_parameters.octaves = octaves;
-  clouds_parameters.low_cut = low_cut;
-  clouds_parameters.high_cut = high_cut;
-  generate_cloud_noise(*clouds_texture, clouds_parameters);
+  if (previous_index == -1 ||
+      previous_index != date_time_controller.get_index()) {
+
+    // calculate params
+    if (mapper.has_entry()) {
+      mapper.calculate(static_cast<size_t>(date_time_controller.get_index()));
+      if (mapper.get_render_parameters())
+        render_parameters = *mapper.get_render_parameters();
+
+      if (mapper.get_clouds_texture_parameters()) {
+        clouds_texture_parameters = *mapper.get_clouds_texture_parameters();
+        clouds_texture_parameters.width = clouds_texture->get_width();
+        clouds_texture_parameters.height = clouds_texture->get_height();
+        generate_cloud_noise(*clouds_texture, clouds_texture_parameters);
+      }
+    }
+    previous_index = date_time_controller.get_index();
+  }
 
   if (debug_enabled) {
     if (ImGui::Begin("Parameters")) {
       ImGui::Text("Render parameters");
 
-      static glm::vec3 camera_position(20.0f, 18.0f, -50.0f);
-      ImGui::DragFloat3("Camera position", glm::value_ptr(camera_position),
-                        1.0f, -100.0f, 100.0f);
-
-      static glm::vec3 light_position(0.0f, 0.0f, 0.0f);
-      ImGui::DragFloat3("Light position", glm::value_ptr(light_position), 1.0f,
+      ImGui::DragFloat3("Camera position",
+                        glm::value_ptr(render_parameters.camera_position), 1.0f,
                         -100.0f, 100.0f);
 
-      static glm::vec3 light_color(0.0f, 0.0f, 0.0f);
-      ImGui::DragFloat3("Light color", glm::value_ptr(light_color), 1000.0f,
+      ImGui::DragFloat3("Camera direction",
+                        glm::value_ptr(render_parameters.camera_direction),
+                        0.05f, -1.0f, 1.0f);
+
+      ImGui::DragFloat3("Sun direction",
+                        glm::value_ptr(render_parameters.light_direction),
+                        0.05f, -1.0f, 1.0f);
+
+      ImGui::DragFloat3("Light color",
+                        glm::value_ptr(render_parameters.light_color), 1000.0f,
                         900.0f, 850.0f);
 
-      ImGui::SliderFloat("Density", &density, 0.0f, 1.0f);
+      ImGui::SliderFloat("Density", &render_parameters.density, 0.0f, 1.0f);
     }
     ImGui::End();
 
     if (ImGui::Begin("Clouds")) {
-      ImGui::DragFloat("Frequency", &frequency);
-      ImGui::DragFloat("Octaves", &octaves);
-      ImGui::DragFloat("Low cut", &low_cut, 0.05f, 0.0f, 1.0f);
-      ImGui::DragFloat("High cut", &high_cut, 0.05f, 0.0f, 1.0f);
+      ImGui::DragFloat("Frequency", &clouds_texture_parameters.frequency);
+      ImGui::DragFloat("Octaves", &clouds_texture_parameters.octaves);
+      ImGui::DragFloat("Low cut L", &clouds_texture_parameters.low_cut_l,
+                       0.005f, 0.0f, 1.0f);
+      ImGui::DragFloat("High cut L", &clouds_texture_parameters.high_cut_l,
+                       0.005f, 0.0f, 1.0f);
 
-      ImGui::DragFloat3("Position", glm::value_ptr(noise_pos), 0.001f, 0.0f,
-                        100.0f);
+
+      ImGui::DragFloat("Low cut M", &clouds_texture_parameters.low_cut_m,
+                       0.005f, 0.0f, 1.0f);
+      ImGui::DragFloat("High cut M", &clouds_texture_parameters.high_cut_m,
+                       0.005f, 0.0f, 1.0f);
+
+      ImGui::DragFloat("Low cut H", &clouds_texture_parameters.low_cut_h,
+                       0.005f, 0.0f, 1.0f);
+      ImGui::DragFloat("High cut H", &clouds_texture_parameters.high_cut_h,
+                       0.005f, 0.0f, 1.0f);
+
+      ImGui::DragFloat3("Position",
+                        glm::value_ptr(clouds_texture_parameters.position),
+                        0.001f, 0.0f, 100.0f);
+
+      static bool auto_regenerate = false;
+      if (ImGui::Button("Regenerate") || auto_regenerate) {
+        clouds_texture_parameters.width = clouds_texture->get_width();
+        clouds_texture_parameters.height = clouds_texture->get_height();
+        generate_cloud_noise(*clouds_texture, clouds_texture_parameters);
+      }
+      ImGui::SameLine();
+      ImGui::Checkbox("Continously", &auto_regenerate);
 
       if (clouds_texture) {
         ImGui::Image(*clouds_texture.get());
@@ -435,17 +504,9 @@ void WindowMain::render() {
 
   if (ImGui::Begin("Render")) {
     if (render_texture && clouds_texture) {
-      RenderParameters parameters;
-      parameters.width = render_texture->get_width();
-      parameters.height = render_texture->get_height();
-      parameters.time = 1.0f;
-      parameters.camera_position; // TODO;
-      parameters.light_position;
-      ;
-      parameters.light_color;
-      ;
-      parameters.density = density;
-      launch_render(*render_texture, *clouds_texture, parameters);
+      render_parameters.width = render_texture->get_width();
+      render_parameters.height = render_texture->get_height();
+      launch_render(*render_texture, *clouds_texture, render_parameters);
       ImGui::Text("size = %zu x %zu", render_texture->get_width(),
                   render_texture->get_height());
 

@@ -6,6 +6,7 @@
 #include "datetime_controller.hpp"
 #include "location_controller.hpp"
 #include "weather_entry_view.hpp"
+#include "weather_mapper.hpp"
 
 struct GLFWwindow;
 class Texture;
@@ -25,4 +26,8 @@ private:
   WeatherEntryView weather_entry_view;
   DateTimeController date_time_controller;
   LocationController location_controller;
+  WeatherMapper mapper;
+
+  RenderParameters render_parameters;
+  CloudsRenderParameters clouds_texture_parameters;
 };

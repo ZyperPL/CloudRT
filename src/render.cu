@@ -6,48 +6,73 @@
 Copyright (c) 2022 Kacper Zybała
 Copyright (c) 2017 Thomas Schander
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-*/ 
+*/
 
 // based on https://www.shadertoy.com/view/4dSBDt
 __device__ const float PI = 3.141592;
 
-__device__ const float EARTH_RADIUS = 6300e3;
-__device__ const float CLOUD_START = 600.0;
-__device__ const float CLOUD_HEIGHT = 500.0;
+__device__ const float EARTH_RADIUS = 6'371'000;
+__device__ const float CLOUD_START = 1981;
+__device__ const float CLOUD_HEIGHT = 6096;
 __device__ const glm::vec3 SUN_POWER = glm::vec3(1.0, 0.9, 0.6) * 900.0f;
 __device__ const glm::vec3 LOW_SCATTER = glm::vec3(1.1, 0.7, 0.5);
 
 __device__ float hash(float n) { return glm::fract(sin(n) * 43758.5453); }
 
+__device__ float hash(glm::vec3 p) {
+  p = glm::fract(p * 0.3183099f + 0.1f);
+  p *= 17.0f;
+  return glm::fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
 // float hash(vec2 p) {
 //     return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);
 // }
 
-__device__ float noise(glm::vec3 x, cudaTextureObject_t clouds_texture) {
-  glm::vec3 p = floor(x);
-  glm::vec3 f = fract(x);
+__device__ float noise(const glm::vec3 &x) {
+  glm::vec3 i = glm::floor(x);
+  glm::vec3 f = glm::fract(x);
   f = f * f * (3.0f - 2.0f * f);
-  // return glm::sin(x.x) + cos(x.y) + glm::sin(x.z)*cos(x.z) / 453.234;
-  //return p.x*0.00001f + f.z*0.00001f + 0.1f;
-  return tex2D<float1>(clouds_texture, (p.x+f.x+0.5f) / 24.0f, (p.y+f.y+0.5f) / 24.0f).x;
-  // return textureLod(iChannel2, (p+f+0.5)/24.0, 0.0).x;
+
+  return glm::mix(glm::mix(glm::mix(hash(i + glm::vec3(0.0f, 0.0f, 0.0f)),
+                                    hash(i + glm::vec3(1, 0, 0)), f.x),
+                           glm::mix(hash(i + glm::vec3(0, 1, 0)),
+                                    hash(i + glm::vec3(1, 1, 0)), f.x),
+                           f.y),
+                  glm::mix(glm::mix(hash(i + glm::vec3(0, 0, 1)),
+                                    hash(i + glm::vec3(1, 0, 1)), f.x),
+                           glm::mix(hash(i + glm::vec3(0, 1, 1)),
+                                    hash(i + glm::vec3(1, 1, 1)), f.x),
+                           f.y),
+                  f.z);
 }
 
-__device__ float fbm(glm::vec3 p, cudaTextureObject_t clouds_texture) {
+__device__ float fbm(glm::vec3 p) {
   glm::mat3 m =
       glm::mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
   float f;
-  f = 0.5000f * noise(p, clouds_texture);
+  f = 0.5000f * noise(p);
   p = m * p * 2.02f;
-  f += 0.2500f * noise(p, clouds_texture);
+  f += 0.2500f * noise(p);
   p = m * p * 2.03f;
-  f += 0.1250f * noise(p, clouds_texture);
+  f += 0.1250f * noise(p);
   p = m * p * 2.04f;
   return f;
 }
@@ -74,42 +99,56 @@ __device__ float intersectSphere(glm::vec3 origin, glm::vec3 dir,
   return (t0 < 0.0) ? t1 : t0;
 }
 
-__device__ float clouds(glm::vec3 p, float &cloudHeight, cudaTextureObject_t clouds_texture) {
+__device__ float clouds(glm::vec3 p, float &cloudHeight,
+                        cudaTextureObject_t clouds_texture) {
   float atmoHeight =
       length(p - glm::vec3(0.0f, -EARTH_RADIUS, 0.0f)) - EARTH_RADIUS;
   cloudHeight =
       glm::clamp((atmoHeight - CLOUD_START) / (CLOUD_HEIGHT), 0.0f, 1.0f);
+
+  if (cloudHeight < 0.1f || cloudHeight > 0.9f)
+    return 0.0f;
   // p.z += iTime*10.3;
-  //int idx = int(0.02f * (p.z * clouds_texture.width + p.x));
-  //idx = int(0.00005f * p.x * 1024.0f + 0.00005f * p.z) % (1024*1024);
-  //printf("p=%f, %f, %f, idx=%d\n", p.x, p.y, p.z, idx);
-  
+  // int idx = int(0.02f * (p.z * clouds_texture.width + p.x));
+  // idx = int(0.00005f * p.x * 1024.0f + 0.00005f * p.z) % (1024*1024);
+  // printf("p=%f, %f, %f, idx=%d\n", p.x, p.y, p.z, idx);
+
   float largeWeather =
       glm::clamp((glm::sin(-0.005f * glm::vec2(p.z, p.x)).x +
                   glm::sin(-0.005f * glm::vec2(p.y, p.x)).y - 0.18f) *
                      5.0f,
                  0.0f, 2.0f);
-  largeWeather = glm::clamp((tex2D<float1>(clouds_texture, p.z * -0.0005, p.x * -0.005).x - 0.18f) * 5.0f, 0.0f, 2.0f);
+  largeWeather = glm::clamp(
+      (tex2D<float4>(clouds_texture, p.z * -0.00005f, p.x * -0.00005f).x -
+       0.38f) *
+          5.0f,
+      0.0f, 2.0f);
   // p.x += iTime*8.3;
-//  largeWeather = sample(clouds_texture, p).x;
+  //  largeWeather = sample(clouds_texture, p).x;
 
-  //return sample(clouds_texture, p * 0.0010f).x;
-  float weather = largeWeather * (glm::max(0.0f, 1.0f)-0.28f) / 0.72f;
-  weather = largeWeather * glm::max(0.0f, tex2D<float1>(clouds_texture, 0.0002f * p.z, 0.0002f * p.x).x - 0.28f) / 0.72f;
+  // return sample(clouds_texture, p * 0.0010f).x;
+  float weather = largeWeather * (glm::max(0.0f, 1.0f) - 0.28f) / 0.72f;
+  weather =
+      largeWeather *
+      glm::max(0.0f,
+               tex2D<float4>(clouds_texture, 0.0002f * p.z, 0.0002f * p.x).x -
+                   0.28f) /
+      0.72f;
   weather *= glm::smoothstep(0.0f, 0.5f, cloudHeight) *
              glm::smoothstep(1.0f, 0.5f, cloudHeight);
+
   float cloudShape =
       pow(weather, 0.3f + 1.5f * glm::smoothstep(0.2f, 0.5f, cloudHeight));
   if (cloudShape <= 0.0)
     return 0.0;
   // p.x += iTime*12.3;
-  float den = glm::max(0.0f, cloudShape - 0.7f * fbm(p * .01f, clouds_texture));
+  float den = glm::max(0.0f, cloudShape - 0.7f * fbm(p * 0.001f));
   if (den <= 0.0)
     return 0.0;
 
   // p.y += iTime*15.2;
-  den = glm::max(0.0f, den - 0.3f * fbm(p * 0.05f, clouds_texture) + 0.1f * fbm(p * 0.093f, clouds_texture) +
-                           0.05f * fbm(p * 0.041f, clouds_texture));
+  den = glm::max(0.0f, den - 0.3f * fbm(p * 0.005f) + 0.1f * fbm(p * 0.02f) +
+                           0.05f * fbm(p * 0.06f));
   return largeWeather * 0.2f * glm::min(1.0f, 5.0f * den);
 }
 
@@ -151,7 +190,8 @@ __device__ float phase(float c) {
 }
 
 __device__ float lightRay(glm::vec3 p, float phaseFunction, float dC, float mu,
-                          glm::vec3 sun_direction, float cloudHeight, cudaTextureObject_t clouds_texture) {
+                          glm::vec3 sun_direction, float cloudHeight,
+                          cudaTextureObject_t clouds_texture) {
   int nbSampleLight = 32;
   float zMaxl = 700.;
   float stepL = zMaxl / float(nbSampleLight);
@@ -161,8 +201,8 @@ __device__ float lightRay(glm::vec3 p, float phaseFunction, float dC, float mu,
   // + iTime);
   for (int j = 0; j < nbSampleLight; j++) {
     float cloudHeight;
-    lighRayDen +=
-        clouds(p + sun_direction * float(j) * stepL / 1.0f, cloudHeight, clouds_texture);
+    lighRayDen += clouds(p + sun_direction * float(j) * stepL / 1.0f,
+                         cloudHeight, clouds_texture);
   }
 
   float scatterAmount =
@@ -177,11 +217,13 @@ __device__ float lightRay(glm::vec3 p, float phaseFunction, float dC, float mu,
 }
 
 __device__ glm::vec3 skyRay(glm::vec3 org, glm::vec3 dir,
-                            glm::vec3 sun_direction, cudaTextureObject_t clouds_texture) {
+                            glm::vec3 sun_direction,
+                            cudaTextureObject_t clouds_texture,
+                            RenderParameters &parameters) {
   const float ATM_START = EARTH_RADIUS + CLOUD_START;
   const float ATM_END = ATM_START + CLOUD_HEIGHT;
 
-  int nbSample = 512;
+  int nbSample = 256;
   glm::vec3 color = glm::vec3(0.0);
   float distToAtmStart =
       intersectSphere(org, dir, glm::vec3(0.0, -EARTH_RADIUS, 0.0), ATM_START);
@@ -193,21 +235,19 @@ __device__ glm::vec3 skyRay(glm::vec3 org, glm::vec3 dir,
   float mu = glm::dot(sun_direction, dir);
   float phaseFunction = pow(phase(mu), 4.0) + phase(mu);
 
-  // p += dir*stepS*hash(glm::dot(dir, glm::vec3(12.256, 2.646, 6.356)) +
-  // iTime);
   if (dir.y > 0.00)
     for (int i = 0; i < nbSample; i++) {
       float cloudHeight;
       float density = clouds(p, cloudHeight, clouds_texture);
 
       if (density > 0.0) {
-        float intensity =
-            lightRay(p, phaseFunction, density, mu, sun_direction, cloudHeight, clouds_texture);
+        float intensity = lightRay(p, phaseFunction, density, mu, sun_direction,
+                                   cloudHeight, clouds_texture);
         glm::vec3 ambient =
             (0.5f + 0.6f * cloudHeight) * glm::vec3(0.2, 0.5, 1.0) * 6.5f +
             glm::vec3(0.8) * glm::max(0.0f, 1.0f - 2.0f * cloudHeight);
         glm::vec3 radiance = ambient + SUN_POWER * intensity;
-        radiance *= density;
+        radiance *= density * parameters.density;
         color += T * (radiance - radiance * glm::exp(-density * stepS)) /
                  density; // By Seb Hillaire
         T *= exp(-density * stepS);
@@ -223,7 +263,7 @@ __device__ glm::vec3 skyRay(glm::vec3 org, glm::vec3 dir,
                 dir;
   color +=
       T * glm::vec3(3.0) *
-      glm::max(0.0f, fbm(glm::vec3(1.0f, 1.0f, 1.8f) * pC * 0.002f, clouds_texture) - 0.4f);
+      glm::max(0.0f, fbm(glm::vec3(1.0f, 1.0f, 1.8f) * pC * 0.002f) - 0.4f);
   glm::vec3 background =
       6.0f * glm::mix(glm::vec3(0.2f, 0.52f, 1.0f),
                       glm::vec3(0.8f, 0.95f, 1.0f),
@@ -246,7 +286,9 @@ __device__ glm::vec3 aces_tonemap(glm::vec3 color) {
   return glm::pow(glm::clamp(m2 * (a / b), 0.0f, 1.0f), glm::vec3(1.0f / 2.2f));
 }
 
-__global__ void render(cudaSurfaceObject_t out_surface, cudaTextureObject_t clouds_texture, RenderParameters parameters) {
+__global__ void render_clouds(cudaSurfaceObject_t out_surface,
+                              cudaTextureObject_t clouds_texture,
+                              RenderParameters parameters) {
   const int c = blockIdx.x * blockDim.x + threadIdx.x;
   const int r = blockIdx.y * blockDim.y + threadIdx.y;
   if ((c >= parameters.width) || (r >= parameters.height))
@@ -260,12 +302,12 @@ __global__ void render(cudaSurfaceObject_t out_surface, cudaTextureObject_t clou
   Ray ray;
   ray.origin = parameters.camera_position;
   ray.pos = ray.origin;
-  ray.dir = glm::normalize(glm::vec3(du * 2.0f - 1.0f, dv * 2.0f - 1.0f, 1.0));
+  ray.dir = glm::normalize(
+      glm::normalize(glm::vec3(du * 2.0f - 1.0f, dv * 2.0f - 1.0f, 1.0)) *
+      glm::normalize(parameters.camera_direction));
 
   glm::vec2 q = glm::vec2(du, dv);
   glm::vec2 v = -1.0f + 2.0f * q;
-  // v.x *= iResolution.x/ iResolution.y;
-  // glm::vec2 mo = iMouse.xy / iResolution.xy;
   glm::vec2 mo = glm::vec2(0.5f, 0.5f);
   float camRot = -7.0 * mo.x;
   glm::vec3 org =
@@ -278,20 +320,24 @@ __global__ void render(cudaSurfaceObject_t out_surface, cudaTextureObject_t clou
   glm::vec3 vv = glm::normalize(glm::cross(ww, uu));
   glm::vec3 dir = glm::normalize(v.x * uu + v.y * vv + 1.4f * ww);
   glm::vec3 color = glm::vec3(.0);
-  glm::vec3 sun_direction = normalize(glm::vec3(0.6, 0.65, -0.8));
+  // glm::vec3 sun_direction = normalize(glm::vec3(0.6, 0.65, -0.8));
+  glm::vec3 sun_direction = normalize(parameters.light_direction);
+  org = ray.origin;
+  // dir = ray.dir;
   float fogDistance = intersectSphere(
       org, dir, glm::vec3(0.0f, -EARTH_RADIUS, 0.0f), float(EARTH_RADIUS));
   float mu = dot(sun_direction, dir);
 
-  // Sky
-  if (fogDistance == -1.) {
-    color = skyRay(org, dir, sun_direction, clouds_texture);
+  // if (fogDistance == -1.)
+  {
+    color = skyRay(org, dir, sun_direction, clouds_texture, parameters);
     fogDistance = intersectSphere(org, dir, glm::vec3(0.0, -EARTH_RADIUS, 0.0),
                                   EARTH_RADIUS + 160.0);
   }
 
   float fogPhase =
       0.5f * HenyeyGreenstein(mu, 0.7) + 0.5 * HenyeyGreenstein(mu, -0.6);
+  // fogPhase = pow(phase(mu), 4.0) + phase(mu);
   glm::vec4 col = glm::vec4(glm::mix(fogPhase * 0.1f * LOW_SCATTER * SUN_POWER +
                                          10.0f * glm::vec3(0.55, 0.8, 1.0),
                                      color, glm::exp(-0.0003f * fogDistance)),
@@ -304,23 +350,26 @@ __global__ void render(cudaSurfaceObject_t out_surface, cudaTextureObject_t clou
   output.z = col.b;
   output.w = 1.0f;
 
-  //output.x = tex2D<float4>(clouds_texture, glm::mod((float)(du) * 3.0f, 1.0f), glm::mod((float)(dv) * 6.0f, 1.0f)).x;
+  // output.x = tex2D<float4>(clouds_texture, glm::mod((float)(du)
+  // * 3.0f, 1.0f), glm::mod((float)(dv) * 6.0f, 1.0f)).x;
 
   surf2Dwrite(output, out_surface, c * sizeof(float4), r);
 }
 
-void launch_render(Texture &out_texture, 
-                   Texture &clouds_texture,
+void launch_render(Texture &out_texture, Texture &clouds_texture,
                    RenderParameters parameters) {
-  const dim3 blockSize(16, 16);
+  const dim3 blockSize(32, 32);
   const dim3 gridSize =
       dim3((parameters.width + blockSize.x - 1) / blockSize.x,
            (parameters.height + blockSize.y - 1) / blockSize.y);
 
-  cudaSurfaceObject_t cuda_render_surface = out_texture.create_cuda_surface_object();
-  cudaTextureObject_t cuda_clouds_texture = clouds_texture.create_cuda_texture_object();
+  cudaSurfaceObject_t cuda_render_surface =
+      out_texture.create_cuda_surface_object();
+  cudaTextureObject_t cuda_clouds_texture =
+      clouds_texture.create_cuda_texture_object();
 
-  render<<<gridSize, blockSize>>>(cuda_render_surface, cuda_clouds_texture, parameters);
+  render_clouds<<<gridSize, blockSize>>>(cuda_render_surface,
+                                         cuda_clouds_texture, parameters);
 
   out_texture.destroy_cuda_surface_object(cuda_render_surface);
   clouds_texture.destroy_cuda_texture_object(cuda_clouds_texture);

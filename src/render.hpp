@@ -18,7 +18,7 @@ struct RenderParameters
   int height;
   glm::vec3 camera_position;
   glm::vec3 camera_direction;
-  glm::vec3 light_position;
+  glm::vec3 light_direction;
   glm::vec3 light_color;
   float time;
   float density;

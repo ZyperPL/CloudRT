@@ -45,14 +45,11 @@ void LocationController::onLocationSelected(size_t index) {
     if (selected_json["name"].is_string())
       selected_name = selected_json["name"].get<std::string>();
 
-    printf("Selected name: %s index: %zu\n", selected_name.c_str(),
-           selected_location);
-
-    if (selected_json["lat"].is_number_float()) {
+    if (selected_json["lat"].is_number()) {
       const auto &lat = selected_json["lat"];
       query_parameters.add("lat", std::to_string(lat.get<float>()));
     }
-    if (selected_json["lon"].is_number_float()) {
+    if (selected_json["lon"].is_number()) {
       const auto &lon = selected_json["lon"];
       query_parameters.add("lon", std::to_string(lon.get<float>()));
     }
@@ -65,7 +62,7 @@ void LocationController::onLocationSelected(size_t index) {
     nlohmann::json json = nlohmann::json::parse(data_object->get()->data);
     entry = std::make_shared<WeatherEntry>(
         json, locations_json[selected_location]["name"].get<std::string>());
-  }
+  } 
   // TODO: handle connection error
 }
 

@@ -4,9 +4,38 @@
 
 #define surface_type float4
 
-__device__ float remap(float x, float a, float b, float c, float d)
-{
-    return (((x - a) / (b - a)) * (d - c)) + c;
+__device__ float remap(float domain, float min_x, float max_x, float min_y, float max_y) {
+  return (((domain - min_x) / (max_x - min_x)) * (max_y - min_y)) + min_y;
+}
+
+__device__ glm::vec3 hash33(glm::vec3 p3) {
+  p3 = fract(p3 * glm::vec3(0.1031f, 0.11369f, 0.13787f));
+  p3 += dot(p3, glm::vec3(p3.y, p3.x, p3.z) + 19.19f);
+  return -1.0f +
+         2.0f * glm::fract(glm::vec3((p3.x + p3.y) * p3.z, (p3.x + p3.z) * p3.y,
+                                     (p3.y + p3.z) * p3.x));
+}
+
+__device__ float worleyNoise(glm::vec3 uv, float freq) {
+  glm::vec3 id = glm::floor(uv);
+  glm::vec3 p = glm::fract(uv);
+
+  float minDist = 10000.;
+  for (float x = -1.; x <= 1.; ++x) {
+    for (float y = -1.; y <= 1.; ++y) {
+      for (float z = -1.; z <= 1.; ++z) {
+        glm::vec3 offset = glm::vec3(x, y, z);
+        glm::vec3 h =
+            hash33(glm::mod(id + offset, glm::vec3(freq))) * 0.5f + 0.5f;
+        h += offset;
+        glm::vec3 d = p - h;
+        minDist = glm::min(minDist, glm::dot(d, d));
+      }
+    }
+  }
+
+  // inverted worley noise
+  return 1. - minDist;
 }
 
 __device__ float perlin(const glm::vec3 &pos, float frequency,
@@ -33,7 +62,8 @@ __device__ float perlin(const glm::vec3 &pos, float frequency,
   return noise;
 }
 
-__global__ void render(cudaSurfaceObject_t surface, CloudsRenderParameters parameters) {
+__global__ void render(cudaSurfaceObject_t surface,
+                       CloudsRenderParameters parameters) {
   const int c = blockIdx.x * blockDim.x + threadIdx.x;
   const int r = blockIdx.y * blockDim.y + threadIdx.y;
   if ((c >= parameters.width) || (r >= parameters.height))
@@ -49,22 +79,42 @@ __global__ void render(cudaSurfaceObject_t surface, CloudsRenderParameters param
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
 
-  glm::vec4 col2 = glm::vec4(
-      perlin(glm::vec3(parameters.position.x * 3.12f + du, parameters.position.y * 341.f + dv,
+  col *= glm::vec4(
+      perlin(glm::vec3(parameters.position.x * 0.03151f + du, parameters.position.y * 0.0454f + dv,
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
 
-  glm::vec4 col3 = glm::vec4(
-      perlin(glm::vec3(parameters.position.x * 0.513f + du, parameters.position.y * 0.134f + dv,
+  col += glm::vec4(
+      perlin(glm::vec3(parameters.position.x * 0.6591f + du, parameters.position.y * 0.4564f + dv,
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
+
+  glm::vec4 col2 = glm::vec4(perlin(
+      glm::vec3(parameters.position.x * 3.12f + du,
+                parameters.position.y * 341.f + dv, parameters.position.z),
+      parameters.frequency, parameters.octaves));
+
+  glm::vec4 col3 = glm::vec4(perlin(
+      glm::vec3(parameters.position.x * 0.12f + du,
+                parameters.position.y * 0.2f + dv, parameters.position.z),
+      parameters.frequency, parameters.octaves));
+
+  col += glm::vec4(
+      worleyNoise(glm::vec3(parameters.position.x + du,
+                            parameters.position.y + dv, parameters.position.z) * parameters.frequency,
+                  parameters.frequency));
+
+  col *= 0.25;
+
+  col2 = col;
+  col3 = col;
 
   surface_type output;
-  output.x = remap(col.r, parameters.low_cut, parameters.high_cut, 0.0f, 1.0f);
-  output.y = remap(col2.g, parameters.low_cut, parameters.high_cut, 0.0f, 1.0f);
-  output.z = remap(col3.b, parameters.low_cut, parameters.high_cut, 0.0f, 1.0f);
-  //output.y = col.g;
-  //output.z = col.b;
+  output.x = remap(col.r, parameters.low_cut_l, parameters.high_cut_l, 0.0f, 1.0f);
+  output.y = remap(col2.g, parameters.low_cut_m, parameters.high_cut_m, 0.0f, 1.0f);
+  output.z = remap(col3.b, parameters.low_cut_h, parameters.high_cut_h, 0.0f, 1.0f);
+  // output.y = col.g;
+  // output.z = col.b;
   output.w = 1.0f;
 
   surf2Dwrite(output, surface, c * sizeof(surface_type), r);
@@ -77,7 +127,7 @@ void generate_cloud_noise(Texture &texture, CloudsRenderParameters &params) {
            (texture.get_height() + blockSize.y - 1) / blockSize.y);
 
   cudaSurfaceObject_t surface_obj = texture.create_cuda_surface_object();
-  
+
   render<<<gridSize, blockSize>>>(surface_obj, params);
 
   texture.destroy_cuda_surface_object(surface_obj);

@@ -17,8 +17,10 @@ def get_weather():
 
     location_res = None
     if 'location' in request.args:
+        print(f"Looking for {request.args['location']}...")
         location_res = api.location.get_location(request.args.get('location'))
     elif 'lat' not in request.args or 'lon' not in request.args:
+        print(f"Looking for auto-location...")
         location_res = api.location.get_location("") # auto
     
     if location_res and location_res.status_code == 200:

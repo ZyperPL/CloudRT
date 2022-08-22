@@ -39,6 +39,7 @@ std::string QueryParameters::string() {
     parameters_string += HTTP::url_escape_string(key);
     parameters_string += "=";
     parameters_string += HTTP::url_escape_string(value);
+    parameters_string += "&";
   }
 
   return parameters_string;
