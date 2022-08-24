@@ -62,6 +62,32 @@ __device__ float perlin(const glm::vec3 &pos, float frequency,
   return noise;
 }
 
+__device__ glm::vec4 generate_texture(double du, double dv, CloudsRenderParameters parameters)
+{
+  glm::vec4 col = glm::vec4(
+      perlin(glm::vec3(parameters.position.x + du, parameters.position.y + dv,
+                       parameters.position.z),
+             parameters.frequency, parameters.octaves));
+
+  col *= glm::vec4(
+      perlin(glm::vec3(parameters.position.x * 5.93151f + du, parameters.position.y * 0.0454f + dv,
+                       parameters.position.z),
+             parameters.frequency, parameters.octaves));
+
+  col += glm::vec4(
+      perlin(glm::vec3(parameters.position.x * 0.6591f + du, parameters.position.y * 6.4564f + dv,
+                       parameters.position.z),
+             parameters.frequency, parameters.octaves));
+
+  col += glm::vec4(
+      worleyNoise(glm::vec3(parameters.position.x + du,
+                            parameters.position.y + dv, parameters.position.z) * parameters.frequency,
+                  parameters.frequency));
+
+  col *= 0.25;
+  return col;
+}
+
 __global__ void render(cudaSurfaceObject_t surface,
                        CloudsRenderParameters parameters) {
   const int c = blockIdx.x * blockDim.x + threadIdx.x;
@@ -74,41 +100,24 @@ __global__ void render(cudaSurfaceObject_t surface,
   double dv =
       1.0 - (static_cast<double>(r) / static_cast<double>(parameters.height));
 
-  glm::vec4 col = glm::vec4(
-      perlin(glm::vec3(parameters.position.x + du, parameters.position.y + dv,
-                       parameters.position.z),
-             parameters.frequency, parameters.octaves));
-
-  col *= glm::vec4(
-      perlin(glm::vec3(parameters.position.x * 0.03151f + du, parameters.position.y * 0.0454f + dv,
-                       parameters.position.z),
-             parameters.frequency, parameters.octaves));
-
-  col += glm::vec4(
-      perlin(glm::vec3(parameters.position.x * 0.6591f + du, parameters.position.y * 0.4564f + dv,
-                       parameters.position.z),
-             parameters.frequency, parameters.octaves));
-
-  glm::vec4 col2 = glm::vec4(perlin(
-      glm::vec3(parameters.position.x * 3.12f + du,
-                parameters.position.y * 341.f + dv, parameters.position.z),
-      parameters.frequency, parameters.octaves));
-
-  glm::vec4 col3 = glm::vec4(perlin(
-      glm::vec3(parameters.position.x * 0.12f + du,
-                parameters.position.y * 0.2f + dv, parameters.position.z),
-      parameters.frequency, parameters.octaves));
-
-  col += glm::vec4(
-      worleyNoise(glm::vec3(parameters.position.x + du,
-                            parameters.position.y + dv, parameters.position.z) * parameters.frequency,
-                  parameters.frequency));
-
-  col *= 0.25;
+  glm::vec4 col = generate_texture(du, dv, parameters);
+  parameters.position.x *= 0.41532f;
+  parameters.position.y *= 0.6423f;
+  parameters.position.z *= 0.154f;
+  parameters.position.x += 5.41532f;
+  parameters.position.y += 4.6423f;
+  parameters.position.z += 1.154f;
+  glm::vec4 col2 = generate_texture(du, dv, parameters);
+  parameters.position.x *= 2.41532f;
+  parameters.position.y *= 1.6423f;
+  parameters.position.z *= 6.154f;
+  parameters.position.x += 4.41532f;
+  parameters.position.y += 1.6423f;
+  parameters.position.z += 0.154f;
+  glm::vec4 col3 = generate_texture(du, dv, parameters);
 
   col2 = col;
   col3 = col;
-
   surface_type output;
   output.x = remap(col.r, parameters.low_cut_l, parameters.high_cut_l, 0.0f, 1.0f);
   output.y = remap(col2.g, parameters.low_cut_m, parameters.high_cut_m, 0.0f, 1.0f);
