@@ -1,8 +1,12 @@
 #include "texture.hpp"
 
+#include <cassert>
 #include <cuda.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime.h>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 Texture::Texture(size_t width, size_t height, Format format)
     : width{width}, height{height}, format{format} {
@@ -111,4 +115,54 @@ cudaTextureObject_t Texture::create_cuda_texture_object() {
 void Texture::destroy_cuda_texture_object(cudaTextureObject_t &obj) {
   unmap_resource();
   cudaDestroyTextureObject(obj);
+}
+
+bool Texture::save_to_file(const char *name, FileFormat file_format) {
+  const size_t format_bytes = static_cast<size_t>(format);
+  const size_t texture_size = format_bytes * width * height;
+  float *dest = new float[texture_size];
+
+#if TEXTURE_FILE_RESOURCE_DESC
+  struct cudaResourceDesc desc;
+  memset(&desc, 0, sizeof(desc));
+  desc.resType = cudaResourceTypeArray;
+  cudaGetSurfaceObjectResourceDesc(&desc, cuda_render_surface);
+  cudaMemcpy2DFromArray(
+      dest, 4 * sizeof(float) * out_texture.get_width(), desc.res.array.array,
+      0, 0, 4 * sizeof(float) * out_texture.get_width(),
+      out_texture.get_height(), cudaMemcpyKind::cudaMemcpyDeviceToHost);
+#endif
+
+  cudaArray_t arr;
+  map_resource(arr);
+
+  cudaError_t ret =
+      cudaMemcpy2DFromArray(dest, format_bytes * sizeof(float) * width, arr, 0,
+                            0, format_bytes * sizeof(float) * width, height,
+                            cudaMemcpyKind::cudaMemcpyDeviceToHost);
+  unmap_resource();
+
+  if (ret != cudaSuccess)
+    return 2;
+
+  unsigned char *data = new unsigned char[texture_size];
+
+  for (size_t i = 0; i < texture_size; i += 4) {
+    data[i + 0] = static_cast<unsigned char>(dest[i + 0] * 254.9f);
+    data[i + 1] = static_cast<unsigned char>(dest[i + 1] * 254.9f);
+    data[i + 2] = static_cast<unsigned char>(dest[i + 2] * 254.9f);
+    data[i + 3] = static_cast<unsigned char>(dest[i + 3] * 254.9f);
+  }
+
+  printf("Saving file \"%s\" %zux%zu %zu bytes (%zu bytes), %p, format = %d\n",
+         name, width, height, format_bytes, texture_size, data, format);
+
+  if (file_format == FileFormat::PNG)
+    return stbi_write_png(name, width, height, format_bytes, data,
+                          width * format_bytes);
+
+  if (file_format == FileFormat::HDR)
+    return stbi_write_hdr(name, width, height, format_bytes, dest);
+
+  return 1;
 }

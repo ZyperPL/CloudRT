@@ -307,8 +307,13 @@ void WindowMain::render() {
   if (ImGui::BeginMenuBar()) {
     if (ImGui::BeginMenu("File")) {
       ImGui::Separator();
-      if (ImGui::MenuItem("Save as image...")) {
-        // TODO
+      if (ImGui::MenuItem("Save as PNG")) {
+        int ret = render_texture->save_to_file("image.png", FileFormat::PNG);
+        printf("File save code: %d\n", ret);
+      }
+      if (ImGui::MenuItem("Save as HDR")) {
+        int ret = render_texture->save_to_file("image.hdr", FileFormat::PNG);
+        printf("File save code: %d\n", ret);
       }
       if (ImGui::MenuItem("Exit"))
         glfwSetWindowShouldClose(handle, GLFW_TRUE);

@@ -20,6 +20,11 @@ typedef int cudaSurfaceObject_t;
 typedef int cudaTextureObject_t;
 #endif
 
+enum class FileFormat
+{
+  PNG, HDR
+};
+
 class Texture {
 public:
   enum class Format { Gray = 1, RGB = 3, RGBA = 4 };
@@ -43,6 +48,8 @@ public:
   void destroy_cuda_texture_object(cudaTextureObject_t &obj);
 
   void update();
+
+  bool save_to_file(const char *name, FileFormat);
 
 private:
   GLuint id{0};
