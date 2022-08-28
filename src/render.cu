@@ -1,159 +1,68 @@
-#include "ray.hpp"
-
 #include "render.hpp"
 
+#include "noise_generator.hpp"
+#include "ray.hpp"
+#include "sphere.hpp"
+#include "tone_mapping.hpp"
+
+__device__ const float EARTH_RADIUS = 6'371'230;
+
+__device__ const int LIGHT_SAMPLES = 16;
+__device__ const float MAX_LIGHT_DISTANCE = 500.0f;
+__device__ const float LIGHT_STEP_LENGTH =
+    MAX_LIGHT_DISTANCE / float(LIGHT_SAMPLES);
+
+__device__ const int RAY_SAMPLES = 2560;
+
 /*
-Copyright (c) 2022 Kacper Zybała
-Copyright (c) 2017 Thomas Schander
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-*/
-
-// based on https://www.shadertoy.com/view/4dSBDt
-__device__ const float PI = 3.141592;
-
-__device__ const float EARTH_RADIUS = 6'371'000;
-__device__ const float CLOUD_START = 1981;
-__device__ const float CLOUD_HEIGHT = 6096;
-__device__ const glm::vec3 SUN_POWER = glm::vec3(1.0, 0.9, 0.6) * 900.0f;
-__device__ const glm::vec3 LOW_SCATTER = glm::vec3(1.1, 0.7, 0.5);
-
-__device__ float hash(float n) { return glm::fract(sin(n) * 43758.5453); }
-
-__device__ float hash(glm::vec3 p) {
-  p = glm::fract(p * 0.3183099f + 0.1f);
-  p *= 17.0f;
-  return glm::fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
-// float hash(vec2 p) {
-//     return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);
-// }
-
-__device__ float noise(const glm::vec3 &x) {
-  glm::vec3 i = glm::floor(x);
-  glm::vec3 f = glm::fract(x);
-  f = f * f * (3.0f - 2.0f * f);
-
-  return glm::mix(glm::mix(glm::mix(hash(i + glm::vec3(0.0f, 0.0f, 0.0f)),
-                                    hash(i + glm::vec3(1, 0, 0)), f.x),
-                           glm::mix(hash(i + glm::vec3(0, 1, 0)),
-                                    hash(i + glm::vec3(1, 1, 0)), f.x),
-                           f.y),
-                  glm::mix(glm::mix(hash(i + glm::vec3(0, 0, 1)),
-                                    hash(i + glm::vec3(1, 0, 1)), f.x),
-                           glm::mix(hash(i + glm::vec3(0, 1, 1)),
-                                    hash(i + glm::vec3(1, 1, 1)), f.x),
-                           f.y),
-                  f.z);
-}
-
-__device__ float fbm(glm::vec3 p) {
-  glm::mat3 m =
-      glm::mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.64);
-  float f;
-  f = 0.5000f * noise(p);
-  p = m * p * 2.02f;
-  f += 0.2500f * noise(p);
-  p = m * p * 2.03f;
-  f += 0.1250f * noise(p);
-  p = m * p * 2.04f;
-  return f;
-}
-
-__device__ float intersectSphere(glm::vec3 origin, glm::vec3 dir,
-                                 glm::vec3 spherePos, float sphereRad) {
-  glm::vec3 oc = origin - spherePos;
-  float b = 2.0 * glm::dot(dir, oc);
-  float c = glm::dot(oc, oc) - sphereRad * sphereRad;
-  float disc = b * b - 4.0 * c;
-  if (disc < 0.0)
-    return -1.0;
-  float q = (-b + ((b < 0.0) ? -sqrt(disc) : sqrt(disc))) / 2.0;
-  float t0 = q;
-  float t1 = c / q;
-  if (t0 > t1) {
-    float temp = t0;
-    t0 = t1;
-    t1 = temp;
-  }
-  if (t1 < 0.0)
-    return -1.0;
-
-  return (t0 < 0.0) ? t1 : t0;
-}
-
-__device__ float clouds(glm::vec3 p, float &cloudHeight,
-                        cudaTextureObject_t clouds_texture) {
-  float atmoHeight =
-      length(p - glm::vec3(0.0f, -EARTH_RADIUS, 0.0f)) - EARTH_RADIUS;
-  cloudHeight =
-      glm::clamp((atmoHeight - CLOUD_START) / (CLOUD_HEIGHT), 0.0f, 1.0f);
-
-  if (cloudHeight < 0.1f || cloudHeight > 0.9f)
+ * sample_clouds
+ * Samples clouds texture and returns cloud's density in the current layer
+ */
+__device__ float sample_clouds(glm::vec3 point, float cloud_height,
+                               cudaTextureObject_t clouds_texture, int layer,
+                               RenderParameters &parameters) {
+  if (cloud_height < 0.1f || cloud_height > 0.9f)
     return 0.0f;
-  // p.z += iTime*10.3;
-  // int idx = int(0.02f * (p.z * clouds_texture.width + p.x));
-  // idx = int(0.00005f * p.x * 1024.0f + 0.00005f * p.z) % (1024*1024);
-  // printf("p=%f, %f, %f, idx=%d\n", p.x, p.y, p.z, idx);
+  point.z += parameters.time * 1.5f;
 
-  float largeWeather =
-      glm::clamp((glm::sin(-0.005f * glm::vec2(p.z, p.x)).x +
-                  glm::sin(-0.005f * glm::vec2(p.y, p.x)).y - 0.18f) *
-                     5.0f,
-                 0.0f, 2.0f);
-  largeWeather = glm::clamp(
-      (tex2D<float4>(clouds_texture, p.z * -0.00005f, p.x * -0.00005f).x -
-       0.38f) *
-          5.0f,
-      0.0f, 2.0f);
-  // p.x += iTime*8.3;
-  //  largeWeather = sample(clouds_texture, p).x;
+  float4 sample4 =
+      tex2D<float4>(clouds_texture, point.z * -0.00005f, point.x * -0.00005f);
+  float sample = layer == 0 ? sample4.x : layer == 1 ? sample4.y : sample4.z;
 
-  // return sample(clouds_texture, p * 0.0010f).x;
-  float weather = largeWeather * (glm::max(0.0f, 1.0f) - 0.28f) / 0.72f;
-  weather =
-      largeWeather *
-      glm::max(0.0f,
-               tex2D<float4>(clouds_texture, 0.0002f * p.z, 0.0002f * p.x).x -
-                   0.28f) /
-      0.72f;
-  weather *= glm::smoothstep(0.0f, 0.5f, cloudHeight) *
-             glm::smoothstep(1.0f, 0.5f, cloudHeight);
+  float global_shape = glm::clamp((sample - 0.38f) * 5.0f, 0.0f, 2.0f);
+  point.x += parameters.time * 0.5f;
 
-  float cloudShape =
-      pow(weather, 0.3f + 1.5f * glm::smoothstep(0.2f, 0.5f, cloudHeight));
-  if (cloudShape <= 0.0)
-    return 0.0;
-  // p.x += iTime*12.3;
-  float den = glm::max(0.0f, cloudShape - 0.7f * fbm(p * 0.001f));
-  if (den <= 0.0)
-    return 0.0;
+  sample4 = tex2D<float4>(clouds_texture, 0.0002f * point.z, 0.0002f * point.x);
+  sample = layer == 0 ? sample4.x : layer == 1 ? sample4.y : sample4.z;
+  float shape = global_shape * glm::max(0.0f, sample - 0.28f) / 0.72f;
+  shape *= glm::smoothstep(0.0f, 0.5f, cloud_height) *
+           glm::smoothstep(1.0f, 0.5f, cloud_height);
 
-  // p.y += iTime*15.2;
-  den = glm::max(0.0f, den - 0.3f * fbm(p * 0.005f) + 0.1f * fbm(p * 0.02f) +
-                           0.05f * fbm(p * 0.06f));
-  return largeWeather * 0.2f * glm::min(1.0f, 5.0f * den);
+  const float vertical_shape =
+      pow(shape, 0.32f + 1.55f * glm::smoothstep(0.2f, 0.5f, cloud_height));
+
+  if (vertical_shape <= 0.0f)
+    return 0.0f;
+
+  point.x += parameters.time * 2.0f;
+  float density = glm::max(
+      0.0f, vertical_shape - 0.7f * NoiseGenerator::fbm(point * 0.001f));
+
+  if (density <= 0.0f)
+    return 0.0f;
+
+  // based on Andrew Schneider's work
+  point.y += parameters.time * 3.0f;
+  density -= 0.3f * NoiseGenerator::fbm(point * 0.005f) -
+             0.1f * NoiseGenerator::fbm(point * 0.02f) -
+             0.05f * NoiseGenerator::fbm(point * 0.06f);
+  density = glm::max(0.0f, density);
+  return global_shape * 0.24f * glm::min(1.0f, 5.0f * density);
 }
 
-// From https://www.shadertoy.com/view/4sjBDG
-__device__ float numericalMieFit(float costh) {
+namespace MiePhase {
+// based on Thomas Schander's work
+__device__ float numerical_mie_fit(float costh) {
   float bestParams[10];
   bestParams[0] = 9.805233e-06;
   bestParams[1] = -6.500000e+01;
@@ -175,115 +84,145 @@ __device__ float numericalMieFit(float costh) {
   return glm::dot(expValues, expValWeight);
 }
 
-__device__ float HenyeyGreenstein(float mu, float inG) {
-  return (1. - inG * inG) /
-         (pow(1. + inG * inG - 2.0 * inG * mu, 1.5) * 4.0 * PI);
+__device__ float henyey_greenstein(float mu, float inG) {
+  return (1. - inG * inG) / (pow(1.0f + inG * inG - 2.0f * inG * mu, 1.5f) *
+                             4.0f * glm::pi<double>());
 }
 
-__device__ float Hillaire(float c) {
-  return glm::mix(HenyeyGreenstein(-0.5f, c), HenyeyGreenstein(0.8f, c), 0.5f);
+__device__ float hillaire_mie(float c) {
+  return glm::mix(henyey_greenstein(-0.5f, c), henyey_greenstein(0.8f, c),
+                  0.5f);
 }
-
+}; // namespace MiePhase
 __device__ float phase(float c) {
-  return (numericalMieFit(c) + Hillaire(c) + HenyeyGreenstein(c, 0.8f) * 2.0f) /
-         4.0f;
+  return (MiePhase::numerical_mie_fit(c) + MiePhase::hillaire_mie(c) +
+          MiePhase::henyey_greenstein(c, 0.8f) * 2.0f) /
+         6.0f;
 }
 
-__device__ float lightRay(glm::vec3 p, float phaseFunction, float dC, float mu,
-                          glm::vec3 sun_direction, float cloudHeight,
-                          cudaTextureObject_t clouds_texture) {
-  int nbSampleLight = 32;
-  float zMaxl = 700.;
-  float stepL = zMaxl / float(nbSampleLight);
+/*
+ * light_march
+ * Performs ray-marching from the point inside the cloud to the light's source
+ */
+__device__ float light_march(glm::vec3 point, float phase_function,
+                             float cloud_density, float light_d,
+                             glm::vec3 sun_direction, float cloud_height,
+                             cudaTextureObject_t clouds_texture, int layer,
+                             RenderParameters &parameters) {
 
-  float lighRayDen = 0.0;
-  // p += sun_direction*stepL*hash(glm::dot(p, glm::vec3(12.256, 2.646, 6.356))
-  // + iTime);
-  for (int j = 0; j < nbSampleLight; j++) {
-    float cloudHeight;
-    lighRayDen += clouds(p + sun_direction * float(j) * stepL / 1.0f,
-                         cloudHeight, clouds_texture);
+  float density = 0.0f;
+  point +=
+      sun_direction * LIGHT_STEP_LENGTH *
+      NoiseGenerator::hash(glm::dot(point, glm::vec3(12.256, 2.646, 6.356)) +
+                           parameters.time);
+  for (int j = 0; j < LIGHT_SAMPLES; j++) {
+    density +=
+        sample_clouds(point + sun_direction * float(j) * LIGHT_STEP_LENGTH,
+                      cloud_height, clouds_texture, layer, parameters);
   }
 
-  float scatterAmount =
-      glm::mix(0.008f, 1.0f, glm::smoothstep(0.96f, 0.0f, mu));
-  float beersLaw = exp(-stepL * lighRayDen) +
-                   0.5 * scatterAmount * exp(-0.1 * stepL * lighRayDen) +
-                   scatterAmount * 0.4 * exp(-0.02 * stepL * lighRayDen);
-  return beersLaw * phaseFunction *
-         glm::mix(0.05f + 1.5f * glm::pow(glm::min(1.0f, dC * 8.5f),
-                                          0.3f + 5.5f * cloudHeight),
-                  1.0f, glm::clamp(lighRayDen * 0.4f, 0.0f, 1.0f));
+  const float scatter_amount =
+      glm::mix(0.008f, 1.0f, glm::smoothstep(0.96f, 0.0f, light_d));
+  const float lambert_beer_attenuation =
+      exp(-LIGHT_STEP_LENGTH * density) +
+      0.5 * scatter_amount * exp(-0.1 * LIGHT_STEP_LENGTH * density) +
+      scatter_amount * 0.4 * exp(-0.02 * LIGHT_STEP_LENGTH * density);
+  return lambert_beer_attenuation * phase_function *
+         glm::mix(0.05f + 1.5f * glm::pow(glm::min(1.0f, cloud_density * 8.5f),
+                                          0.3f + 5.5f * cloud_height),
+                  1.0f, glm::clamp(density * 0.4f, 0.0f, 1.0f));
 }
 
-__device__ glm::vec3 skyRay(glm::vec3 org, glm::vec3 dir,
-                            glm::vec3 sun_direction,
-                            cudaTextureObject_t clouds_texture,
-                            RenderParameters &parameters) {
-  const float ATM_START = EARTH_RADIUS + CLOUD_START;
-  const float ATM_END = ATM_START + CLOUD_HEIGHT;
+/*
+ * sky_march
+ * Performs ray-marching along the ray and checks cloud's density
+ */
+__device__ glm::vec3 sky_march(Ray &ray, cudaTextureObject_t clouds_texture,
+                               RenderParameters &parameters) {
+  glm::vec3 color = glm::vec3(0.0f);
 
-  int nbSample = 256;
-  glm::vec3 color = glm::vec3(0.0);
-  float distToAtmStart =
-      intersectSphere(org, dir, glm::vec3(0.0, -EARTH_RADIUS, 0.0), ATM_START);
-  float distToAtmEnd =
-      intersectSphere(org, dir, glm::vec3(0.0, -EARTH_RADIUS, 0.0), ATM_END);
-  glm::vec3 p = org + distToAtmStart * dir;
-  float stepS = (distToAtmEnd - distToAtmStart) / float(nbSample);
-  float T = 1.;
-  float mu = glm::dot(sun_direction, dir);
-  float phaseFunction = pow(phase(mu), 4.0) + phase(mu);
+  const Sphere atm_start_sphere{glm::vec3(0.0f, -EARTH_RADIUS, 0.0f),
+                                EARTH_RADIUS + parameters.clouds_start.x};
+  const Sphere atm_end_sphere{glm::vec3(0.0f, -EARTH_RADIUS, 0.0f),
+                              EARTH_RADIUS + parameters.clouds_end.z};
 
-  if (dir.y > 0.00)
-    for (int i = 0; i < nbSample; i++) {
-      float cloudHeight;
-      float density = clouds(p, cloudHeight, clouds_texture);
+  ray.pos = ray.origin;
+  const float atmosphere_start_dst = atm_start_sphere.intersect(ray);
+  const float atmosphere_end_dst = atm_end_sphere.intersect(ray);
 
-      if (density > 0.0) {
-        float intensity = lightRay(p, phaseFunction, density, mu, sun_direction,
-                                   cloudHeight, clouds_texture);
-        glm::vec3 ambient =
-            (0.5f + 0.6f * cloudHeight) * glm::vec3(0.2, 0.5, 1.0) * 6.5f +
-            glm::vec3(0.8) * glm::max(0.0f, 1.0f - 2.0f * cloudHeight);
-        glm::vec3 radiance = ambient + SUN_POWER * intensity;
+  glm::vec3 point = ray.origin + atmosphere_start_dst * ray.dir;
+  const float step_size =
+      (atmosphere_end_dst - atmosphere_start_dst) / float(RAY_SAMPLES);
+
+  point +=
+      ray.dir * step_size *
+      NoiseGenerator::hash(glm::dot(ray.dir, glm::vec3(12.256, 2.646, 6.356)) +
+                           parameters.time);
+
+  float T = 1.0f;
+  const float light_d = glm::dot(parameters.light_direction, ray.dir);
+  const float phase_function = pow(phase(light_d), 4.0f) + phase(light_d);
+
+  if (ray.dir.y > 0.0001f)
+    for (int i = 0; i < RAY_SAMPLES; i++) {
+      int layer;
+      float cloud_height;
+      float point_h =
+          length(point - glm::vec3(0.0f, -EARTH_RADIUS, 0.0f)) - EARTH_RADIUS;
+      if (point_h < parameters.clouds_start.y) {
+        cloud_height = glm::clamp(
+            (point_h - parameters.clouds_start.x) /
+                (parameters.clouds_end.x - parameters.clouds_start.x),
+            0.0f, 1.0f);
+        layer = 0;
+      } else if (point_h < parameters.clouds_start.z) {
+        cloud_height = glm::clamp(
+            (point_h - parameters.clouds_start.y) /
+                (parameters.clouds_end.y - parameters.clouds_start.y),
+            0.0f, 1.0f);
+        layer = 1;
+
+      } else {
+        cloud_height = glm::clamp(
+            (point_h - parameters.clouds_start.z) /
+                (parameters.clouds_end.z - parameters.clouds_start.z),
+            0.0f, 1.0f);
+        layer = 2;
+      }
+      const float density =
+          sample_clouds(point, cloud_height, clouds_texture, layer, parameters);
+
+      if (density > 0.0f) {
+        float intensity = light_march(point, phase_function, density, light_d,
+                                      parameters.light_direction, cloud_height,
+                                      clouds_texture, layer, parameters);
+
+        // based on Sebastien Hillarie's work
+        const glm::vec3 ambient =
+            (0.5f + 0.6f * cloud_height) * glm::vec3(0.2, 0.5, 1.0) * 6.5f +
+            glm::vec3(0.8) * glm::max(0.0f, 1.0f - 2.0f * cloud_height);
+        glm::vec3 radiance = ambient + parameters.light_color *
+                                           parameters.light_power * intensity;
         radiance *= density * parameters.density;
-        color += T * (radiance - radiance * glm::exp(-density * stepS)) /
-                 density; // By Seb Hillaire
-        T *= exp(-density * stepS);
+        color += T * (radiance - radiance * glm::exp(-density * step_size)) /
+                 density;
+        T *= exp(-density * step_size);
         if (T <= 0.05f)
           break;
       }
-      p += dir * stepS;
+      point += ray.dir * step_size;
     }
 
-  glm::vec3 pC =
-      org + intersectSphere(org, dir, glm::vec3(0.0f, -EARTH_RADIUS, 0.0f),
-                            ATM_END + 1000.0f) *
-                dir;
-  color +=
-      T * glm::vec3(3.0) *
-      glm::max(0.0f, fbm(glm::vec3(1.0f, 1.0f, 1.8f) * pC * 0.002f) - 0.4f);
   glm::vec3 background =
       6.0f * glm::mix(glm::vec3(0.2f, 0.52f, 1.0f),
                       glm::vec3(0.8f, 0.95f, 1.0f),
-                      glm::pow(0.5f + 0.5f * mu, 15.0f)) +
-      glm::mix(glm::vec3(3.5f), glm::vec3(0.0f), glm::min(1.0f, 2.3f * dir.y));
-  background += T * glm::vec3(1e4 * glm::smoothstep(0.9998f, 1.0f, mu));
+                      glm::pow(0.5f + 0.5f * light_d, 15.0f)) +
+      glm::mix(glm::vec3(3.5f), glm::vec3(0.0f),
+               glm::min(1.0f, 2.3f * ray.dir.y));
+  background += T * glm::vec3(1e4 * glm::smoothstep(0.9998f, 1.0f, light_d));
   color += background * T;
 
   return color;
-}
-
-__device__ glm::vec3 aces_tonemap(glm::vec3 color) {
-  glm::mat3 m1 = glm::mat3(0.59719, 0.07600, 0.02840, 0.35458, 0.90834, 0.13383,
-                           0.04823, 0.01566, 0.83777);
-  glm::mat3 m2 = glm::mat3(1.60475, -0.10208, -0.00327, -0.53108, 1.10813,
-                           -0.07276, -0.07367, -0.00605, 1.07602);
-  glm::vec3 v = m1 * color;
-  glm::vec3 a = v * (v + 0.0245786f) - 0.000090537f;
-  glm::vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
-  return glm::pow(glm::clamp(m2 * (a / b), 0.0f, 1.0f), glm::vec3(1.0f / 2.2f));
 }
 
 __global__ void render_clouds(cudaSurfaceObject_t out_surface,
@@ -293,7 +232,7 @@ __global__ void render_clouds(cudaSurfaceObject_t out_surface,
   const int r = blockIdx.y * blockDim.y + threadIdx.y;
   if ((c >= parameters.width) || (r >= parameters.height))
     return;
-  const int i = c + r * parameters.width;
+  [[maybe_unused]] const int i = c + r * parameters.width;
 
   double du = static_cast<double>(c) / static_cast<double>(parameters.width);
   double dv =
@@ -302,47 +241,48 @@ __global__ void render_clouds(cudaSurfaceObject_t out_surface,
   Ray ray;
   ray.origin = parameters.camera_position;
   ray.pos = ray.origin;
-  ray.dir = glm::normalize(
-      glm::normalize(glm::vec3(du * 2.0f - 1.0f, dv * 2.0f - 1.0f, 1.0)) *
-      glm::normalize(parameters.camera_direction));
 
-  glm::vec2 q = glm::vec2(du, dv);
-  glm::vec2 v = -1.0f + 2.0f * q;
-  glm::vec2 mo = glm::vec2(0.5f, 0.5f);
-  float camRot = -7.0 * mo.x;
+  const float camera_x_rotation = -7.0f * parameters.camera_rotation.x;
   glm::vec3 org =
-      (glm::vec3(6.0f * glm::cos(camRot), glm::mix(1.2f, 10.0f, mo.y),
-                 6.0f * glm::sin(camRot)));
-  glm::vec3 ta = glm::vec3(0.0f, glm::mix(4.2f, 15.0f, mo.y), 0.0f);
+      (glm::vec3(6.0f * glm::cos(camera_x_rotation),
+                 glm::mix(1.2f, 10.0f, parameters.camera_rotation.y),
+                 6.0f * glm::sin(camera_x_rotation)));
+  glm::vec3 ta = glm::vec3(
+      0.0f, glm::mix(4.2f, 15.0f, parameters.camera_rotation.y), 0.0f);
 
   glm::vec3 ww = glm::normalize(ta - org);
   glm::vec3 uu = glm::normalize(glm::cross(glm::vec3(0.0f, 1.0f, 0.0f), ww));
   glm::vec3 vv = glm::normalize(glm::cross(ww, uu));
+  glm::vec2 v = -1.0f + 2.0f * glm::vec2(du, dv);
   glm::vec3 dir = glm::normalize(v.x * uu + v.y * vv + 1.4f * ww);
-  glm::vec3 color = glm::vec3(.0);
-  // glm::vec3 sun_direction = normalize(glm::vec3(0.6, 0.65, -0.8));
-  glm::vec3 sun_direction = normalize(parameters.light_direction);
+
+  glm::vec3 color = glm::vec3(0.0f);
+
+  parameters.light_direction = normalize(parameters.light_direction);
   org = ray.origin;
-  // dir = ray.dir;
-  float fogDistance = intersectSphere(
-      org, dir, glm::vec3(0.0f, -EARTH_RADIUS, 0.0f), float(EARTH_RADIUS));
-  float mu = dot(sun_direction, dir);
+  ray.dir = dir;
+  const float light_d = dot(parameters.light_direction, ray.dir);
 
-  // if (fogDistance == -1.)
-  {
-    color = skyRay(org, dir, sun_direction, clouds_texture, parameters);
-    fogDistance = intersectSphere(org, dir, glm::vec3(0.0, -EARTH_RADIUS, 0.0),
-                                  EARTH_RADIUS + 160.0);
-  }
+  color = sky_march(ray, clouds_texture, parameters);
+  ray.pos = ray.origin;
+  Sphere fog_sphere{glm::vec3(0.0f, -EARTH_RADIUS, 0.0f),
+                    EARTH_RADIUS + 160.0f};
 
-  float fogPhase =
-      0.5f * HenyeyGreenstein(mu, 0.7) + 0.5 * HenyeyGreenstein(mu, -0.6);
-  // fogPhase = pow(phase(mu), 4.0) + phase(mu);
-  glm::vec4 col = glm::vec4(glm::mix(fogPhase * 0.1f * LOW_SCATTER * SUN_POWER +
-                                         10.0f * glm::vec3(0.55, 0.8, 1.0),
-                                     color, glm::exp(-0.0003f * fogDistance)),
-                            1.0f);
-  col = glm::vec4(aces_tonemap(glm::vec3(col.r, col.g, col.b) * 0.06f), 1.0f);
+  const float fogPhase = 0.5f * MiePhase::henyey_greenstein(light_d, 0.7f) +
+                         0.5f * MiePhase::henyey_greenstein(light_d, -0.6f);
+
+  glm::vec4 col = glm::vec4(
+      glm::mix(fogPhase * 0.1f * glm::vec3(1.1f, 0.7f, 0.5f) *
+                       parameters.light_color * parameters.light_power +
+                   10.0f * glm::vec3(0.55f, 0.8f, 1.0f),
+               color, glm::exp(-0.0003f * fog_sphere.intersect(ray))),
+      1.0f);
+  if (ray.dir.y < 0.0f)
+    col *= 0.5f;
+
+  col = glm::vec4(
+      ToneMapper::aces_hill(glm::vec3(col.r, col.g, col.b) * parameters.gamma),
+      1.0f);
 
   float4 output;
   output.x = col.r;
@@ -350,15 +290,31 @@ __global__ void render_clouds(cudaSurfaceObject_t out_surface,
   output.z = col.b;
   output.w = 1.0f;
 
-  // output.x = tex2D<float4>(clouds_texture, glm::mod((float)(du)
-  // * 3.0f, 1.0f), glm::mod((float)(dv) * 6.0f, 1.0f)).x;
+  float4 previous;
+  surf2Dread(&previous, out_surface, c * sizeof(float4), r);
+
+  output.x = glm::clamp(output.x * 0.5f + previous.x * 0.5f, 0.0f, 1.0f);
+  output.y = glm::clamp(output.y * 0.5f + previous.y * 0.5f, 0.0f, 1.0f);
+  output.z = glm::clamp(output.z * 0.5f + previous.z * 0.5f, 0.0f, 1.0f);
 
   surf2Dwrite(output, out_surface, c * sizeof(float4), r);
 }
 
+#define gpuErrchk(ans)                                                         \
+  { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line,
+                      bool abort = true) {
+  if (code != cudaSuccess) {
+    fprintf(stderr, "CUDA assert: %s %s %d\n", cudaGetErrorString(code), file,
+            line);
+    if (abort)
+      exit(code);
+  }
+}
+
 void launch_render(Texture &out_texture, Texture &clouds_texture,
                    RenderParameters parameters) {
-  const dim3 blockSize(32, 32);
+  const dim3 blockSize(16, 16);
   const dim3 gridSize =
       dim3((parameters.width + blockSize.x - 1) / blockSize.x,
            (parameters.height + blockSize.y - 1) / blockSize.y);
@@ -370,6 +326,7 @@ void launch_render(Texture &out_texture, Texture &clouds_texture,
 
   render_clouds<<<gridSize, blockSize>>>(cuda_render_surface,
                                          cuda_clouds_texture, parameters);
+  gpuErrchk(cudaPeekAtLastError());
 
   out_texture.destroy_cuda_surface_object(cuda_render_surface);
   clouds_texture.destroy_cuda_texture_object(cuda_clouds_texture);

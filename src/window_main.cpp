@@ -22,8 +22,8 @@
 #include "render.hpp"
 #include "texture.hpp"
 #include "weather_entry.hpp"
-#include "weather_entry_view.hpp"
 #include "weather_entry_section_view.hpp"
+#include "weather_entry_view.hpp"
 
 #include "imgui_image_utils.hpp"
 
@@ -247,7 +247,7 @@ WindowMain::WindowMain() {
 
   render_texture =
       std::make_unique<Texture>(540 * 1.4, 540 * 1.4, Texture::Format::RGBA);
-  clouds_texture = std::make_unique<Texture>(128, 128, Texture::Format::RGBA);
+  clouds_texture = std::make_unique<Texture>(512, 512, Texture::Format::RGBA);
 
   clouds_texture_parameters.position = glm::vec3(0.0f);
   clouds_texture_parameters.width = clouds_texture->get_width();
@@ -265,7 +265,7 @@ WindowMain::WindowMain() {
   render_parameters.width = render_texture->get_width();
   render_parameters.height = render_texture->get_height();
   render_parameters.camera_position = glm::vec3(0.0f, 1.0f, -1.0f);
-  render_parameters.camera_direction = glm::vec3(0.0f, 0.2f, 0.8f);
+  render_parameters.camera_rotation = glm::vec2(0.5f, 0.5f);
   render_parameters.light_direction = glm::vec3(0.6f, 0.65f, -0.8f);
   render_parameters.density = 0.9f;
 }
@@ -406,16 +406,13 @@ void WindowMain::render() {
     date_time_controller.execute();
   ImGui::End();
 
-  if (ImGui::Begin("Weather"))
-  {
-    if (location_controller.has_entry())
-    {
+  if (ImGui::Begin("Weather")) {
+    if (location_controller.has_entry()) {
       static WeatherEntrySectionView entry_section_view;
 
       const auto &entry = location_controller.get_entry();
       const auto index = date_time_controller.get_index();
-      if (entry && index >= 0)
-      {
+      if (entry && index >= 0) {
         auto section_optional = entry->section(index);
         if (section_optional.has_value())
           entry_section_view.render_ui(section_optional.value());
@@ -450,19 +447,19 @@ void WindowMain::render() {
 
       ImGui::DragFloat3("Camera position",
                         glm::value_ptr(render_parameters.camera_position), 1.0f,
-                        -100.0f, 100.0f);
+                        -1000.0f, 1000.0f);
 
-      ImGui::DragFloat3("Camera direction",
-                        glm::value_ptr(render_parameters.camera_direction),
-                        0.05f, -1.0f, 1.0f);
+      ImGui::DragFloat2("Camera direction",
+                        glm::value_ptr(render_parameters.camera_rotation),
+                        0.01f, -1.0f, 1.0f);
 
       ImGui::DragFloat3("Sun direction",
                         glm::value_ptr(render_parameters.light_direction),
                         0.05f, -1.0f, 1.0f);
 
       ImGui::DragFloat3("Light color",
-                        glm::value_ptr(render_parameters.light_color), 1000.0f,
-                        900.0f, 850.0f);
+                        glm::value_ptr(render_parameters.light_color), 0.01f,
+                        0.0f, 1.0f);
 
       ImGui::SliderFloat("Density", &render_parameters.density, 0.0f, 1.0f);
     }
@@ -475,7 +472,6 @@ void WindowMain::render() {
                        0.005f, 0.0f, 1.0f);
       ImGui::DragFloat("High cut L", &clouds_texture_parameters.high_cut_l,
                        0.005f, 0.0f, 1.0f);
-
 
       ImGui::DragFloat("Low cut M", &clouds_texture_parameters.low_cut_m,
                        0.005f, 0.0f, 1.0f);
@@ -511,6 +507,7 @@ void WindowMain::render() {
     if (render_texture && clouds_texture) {
       render_parameters.width = render_texture->get_width();
       render_parameters.height = render_texture->get_height();
+      render_parameters.time += 0.1f;
       launch_render(*render_texture, *clouds_texture, render_parameters);
       ImGui::Text("size = %zu x %zu", render_texture->get_width(),
                   render_texture->get_height());

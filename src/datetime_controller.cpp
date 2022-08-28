@@ -6,6 +6,9 @@ DateTimeController::DateTimeController() : view{this} {}
 
 void DateTimeController::set_entry(std::shared_ptr<WeatherEntry> entry) {
   this->entry = std::move(entry);
+
+  if (this->selected_index == -1)
+    this->selected_index = this->entry->count() / 4;
 }
 
 void DateTimeController::execute() {

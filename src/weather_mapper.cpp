@@ -18,12 +18,13 @@ void WeatherMapper::calculate_render_parameters(WeatherEntrySection &section) {
 
   p.camera_position = glm::vec3(0.0f, 1.0f, -1.0f);
   p.camera_position.y += glm::mix(0.0f, 10.0f, section.height / 1000.0f);
+  p.camera_rotation = glm::vec2(0.5f, 0.5f);
 
   float water = section.cloud_water + section.cloud_ice * 0.1f;
   const float MAX_WATER = 400.0f;
-  p.camera_direction = glm::vec3(0.0f, 0.3f, 0.7f);
   p.density = glm::clamp(1.0f - glm::mix(0.0f, 0.8f, (water / MAX_WATER)), 0.2f, 1.0f);
   p.light_direction = glm::vec3(0.6f, 0.65f, -0.8f);
+  p.time = static_cast<float>(section.timestamp % 10000);
 }
 
 void WeatherMapper::calculate_clouds_texture_parameters(
@@ -35,14 +36,14 @@ void WeatherMapper::calculate_clouds_texture_parameters(
   p.octaves = 3.0f;
 
   const double &lc = section.low_clouds;
-  p.low_cut_l = 0.15 - glm::smoothstep(0.0, 0.15, lc / 100.0) * 0.15;
+  p.low_cut_l = 0.5 - glm::smoothstep(0.0, 0.5, lc / 100.0) * 0.5;
   p.high_cut_l = 1.0 - glm::smoothstep(0.5, 1.000, lc / 100.0) * 0.5;
 
   const double &mc = section.mid_clouds;
-  p.low_cut_m = 0.15 - glm::smoothstep(0.05, 0.15, mc / 100.0) * 0.05;
+  p.low_cut_m = 0.5 - glm::smoothstep(0.0, 0.5, mc / 100.0) * 0.5;
   p.high_cut_m = 1.0 - glm::smoothstep(0.5, 1.000, mc / 100.0) * 0.5;
 
-  const double &hc = section.mid_clouds;
-  p.low_cut_h = 0.15 - glm::smoothstep(0.05, 0.15, hc / 100.0) * 0.05;
-  p.high_cut_h = 1.0 - glm::smoothstep(0.5, 1.000, hc / 100.0) * 0.5;
+  const double &hc = section.high_clouds;
+  p.low_cut_h = 0.5 - glm::smoothstep(0.0, 0.5, hc / 100.0) * 0.5;
+  p.high_cut_h = 1.0 - glm::smoothstep(0.5, 1.0, hc / 100.0) * 0.5;
 }

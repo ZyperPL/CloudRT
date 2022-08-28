@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glm/glm.hpp"
+#include "glm/gtc/constants.hpp"
 #include "texture.hpp"
 
 #if defined(__CUDACC__)
@@ -14,14 +15,18 @@
 
 struct RenderParameters
 {
-  int width;
-  int height;
-  glm::vec3 camera_position;
-  glm::vec3 camera_direction;
-  glm::vec3 light_direction;
-  glm::vec3 light_color;
-  float time;
-  float density;
+  int width { 128 };
+  int height { 128 };
+  glm::vec3 camera_position { 0.0f, 0.0f, 0.0f };
+  glm::vec2 camera_rotation { 0.5f, 0.5f };
+  glm::vec3 light_direction { 0.6f, 0.65f, -0.8f };
+  glm::vec3 light_color { 1.0f, 0.9f, 0.6f };
+  float light_power { 900.0f };
+  float time { 1.0f };
+  float density { 1.0f };
+  glm::vec3 clouds_start { 300.0f, 2000.0f, 7000.0f };
+  glm::vec3 clouds_end { 2000.0f, 8000.0f, 10000.0f };
+  float gamma { 0.06f };
 };
 
 void launch_render(Texture &out_texture, Texture &clouds_texture, RenderParameters parameters);

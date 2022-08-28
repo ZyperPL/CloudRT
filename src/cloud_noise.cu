@@ -1,90 +1,30 @@
 #include "cloud_noise.hpp"
 
-#include "glm/gtc/noise.hpp"
+#include "noise_generator.hpp"
 
 #define surface_type float4
-
-__device__ float remap(float domain, float min_x, float max_x, float min_y, float max_y) {
-  return (((domain - min_x) / (max_x - min_x)) * (max_y - min_y)) + min_y;
-}
-
-__device__ glm::vec3 hash33(glm::vec3 p3) {
-  p3 = fract(p3 * glm::vec3(0.1031f, 0.11369f, 0.13787f));
-  p3 += dot(p3, glm::vec3(p3.y, p3.x, p3.z) + 19.19f);
-  return -1.0f +
-         2.0f * glm::fract(glm::vec3((p3.x + p3.y) * p3.z, (p3.x + p3.z) * p3.y,
-                                     (p3.y + p3.z) * p3.x));
-}
-
-__device__ float worleyNoise(glm::vec3 uv, float freq) {
-  glm::vec3 id = glm::floor(uv);
-  glm::vec3 p = glm::fract(uv);
-
-  float minDist = 10000.;
-  for (float x = -1.; x <= 1.; ++x) {
-    for (float y = -1.; y <= 1.; ++y) {
-      for (float z = -1.; z <= 1.; ++z) {
-        glm::vec3 offset = glm::vec3(x, y, z);
-        glm::vec3 h =
-            hash33(glm::mod(id + offset, glm::vec3(freq))) * 0.5f + 0.5f;
-        h += offset;
-        glm::vec3 d = p - h;
-        minDist = glm::min(minDist, glm::dot(d, d));
-      }
-    }
-  }
-
-  // inverted worley noise
-  return 1. - minDist;
-}
-
-__device__ float perlin(const glm::vec3 &pos, float frequency,
-                        int octaveCount) {
-  const float octaveFrenquencyFactor = 2;
-
-  float sum = 0.0f;
-  float weightSum = 0.0f;
-  float weight = 0.5f;
-  for (int oct = 0; oct < octaveCount; oct++) {
-    glm::vec4 p = glm::vec4(pos.x, pos.y, pos.z, 0.0f) * glm::vec4(frequency);
-    float val = glm::perlin(p, glm::vec4(frequency));
-
-    sum += val * weight;
-    weightSum += weight;
-
-    weight *= weight;
-    frequency *= octaveFrenquencyFactor;
-  }
-
-  float noise = (sum / weightSum) * 0.5f + 0.5f;
-  noise = std::fminf(noise, 1.0f);
-  noise = std::fmaxf(noise, 0.0f);
-  return noise;
-}
 
 __device__ glm::vec4 generate_texture(double du, double dv, CloudsRenderParameters parameters)
 {
   glm::vec4 col = glm::vec4(
-      perlin(glm::vec3(parameters.position.x + du, parameters.position.y + dv,
+      NoiseGenerator::perlin(glm::vec3(parameters.position.x + du, parameters.position.y + dv,
                        parameters.position.z),
              parameters.frequency, parameters.octaves));
-
   col *= glm::vec4(
-      perlin(glm::vec3(parameters.position.x * 5.93151f + du, parameters.position.y * 0.0454f + dv,
-                       parameters.position.z),
-             parameters.frequency, parameters.octaves));
+      NoiseGenerator::perlin(glm::vec3(parameters.position.x * 1.0f + du, parameters.position.y * 1.0f + dv,
+                       parameters.position.z * 1.0f),
+             parameters.frequency * 0.5f, parameters.octaves));
 
   col += glm::vec4(
-      perlin(glm::vec3(parameters.position.x * 0.6591f + du, parameters.position.y * 6.4564f + dv,
-                       parameters.position.z),
-             parameters.frequency, parameters.octaves));
-
+      NoiseGenerator::perlin(glm::vec3(parameters.position.x * 1.0f + du, parameters.position.y * 1.0f + dv,
+                       parameters.position.z * 1.0f),
+             parameters.frequency * 2.0f, parameters.octaves));
   col += glm::vec4(
-      worleyNoise(glm::vec3(parameters.position.x + du,
+      NoiseGenerator::worley(glm::vec3(parameters.position.x + du,
                             parameters.position.y + dv, parameters.position.z) * parameters.frequency,
                   parameters.frequency));
 
-  col *= 0.25;
+  col *= 0.33f;
   return col;
 }
 
@@ -119,11 +59,9 @@ __global__ void render(cudaSurfaceObject_t surface,
   col2 = col;
   col3 = col;
   surface_type output;
-  output.x = remap(col.r, parameters.low_cut_l, parameters.high_cut_l, 0.0f, 1.0f);
-  output.y = remap(col2.g, parameters.low_cut_m, parameters.high_cut_m, 0.0f, 1.0f);
-  output.z = remap(col3.b, parameters.low_cut_h, parameters.high_cut_h, 0.0f, 1.0f);
-  // output.y = col.g;
-  // output.z = col.b;
+  output.x = NoiseGenerator::remap(col.r, parameters.low_cut_l, parameters.high_cut_l, 0.0f, 1.0f);
+  output.y = NoiseGenerator::remap(col2.g, parameters.low_cut_m, parameters.high_cut_m, 0.0f, 1.0f);
+  output.z = NoiseGenerator::remap(col3.b, parameters.low_cut_h, parameters.high_cut_h, 0.0f, 1.0f);
   output.w = 1.0f;
 
   surf2Dwrite(output, surface, c * sizeof(surface_type), r);
