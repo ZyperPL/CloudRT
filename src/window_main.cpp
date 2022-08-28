@@ -503,12 +503,15 @@ void WindowMain::render() {
     ImGui::End();
   }
 
+  static RenderMeasure render_measure;
+
   if (ImGui::Begin("Render")) {
     if (render_texture && clouds_texture) {
       render_parameters.width = render_texture->get_width();
       render_parameters.height = render_texture->get_height();
       render_parameters.time += 0.1f;
-      launch_render(*render_texture, *clouds_texture, render_parameters);
+      launch_render(*render_texture, *clouds_texture, render_parameters,
+                    render_measure);
       ImGui::Text("size = %zu x %zu", render_texture->get_width(),
                   render_texture->get_height());
 
@@ -518,6 +521,36 @@ void WindowMain::render() {
     }
   }
   ImGui::End();
+
+  if (show_status_window) {
+    if (ImGui::Begin("Status")) {
+      static std::vector<float> frame_time_values;
+      frame_time_values.resize(120);
+      static size_t frame_time_index = 0;
+      static size_t render_measure_counter = 0;
+      static char text[255] = {'\0'};
+      if (render_measure.enabled) {
+        render_measure.enabled = false;
+        frame_time_values[frame_time_index] = render_measure.time_ms;
+        frame_time_index = (frame_time_index + 1) % frame_time_values.size();
+        sprintf(text, "%f", render_measure.time_ms);
+      }
+      render_measure_counter++;
+      if (render_measure_counter > 4) {
+        render_measure_counter = 0;
+        render_measure.enabled = true;
+      }
+
+      const auto available_region = ImGui::GetContentRegionAvail();
+
+      ImGui::PlotLines(
+          "Frame time", frame_time_values.data(), frame_time_values.size(), 0,
+          text, 0.0f, 50.0f,
+          ImVec2(available_region.x - 200.0f, available_region.y - 60.0f));
+      ImGui::Text("Frame time: %4.2f ms\n", render_measure.time_ms);
+    }
+    ImGui::End();
+  }
 
   ImGui::Render();
   int framebuffer_width, framebuffer_height;

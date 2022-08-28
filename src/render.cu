@@ -12,7 +12,7 @@ __device__ const float MAX_LIGHT_DISTANCE = 500.0f;
 __device__ const float LIGHT_STEP_LENGTH =
     MAX_LIGHT_DISTANCE / float(LIGHT_SAMPLES);
 
-__device__ const int RAY_SAMPLES = 2560;
+__device__ const int RAY_SAMPLES = 256;
 
 /*
  * sample_clouds
@@ -313,7 +313,14 @@ inline void gpuAssert(cudaError_t code, const char *file, int line,
 }
 
 void launch_render(Texture &out_texture, Texture &clouds_texture,
-                   RenderParameters parameters) {
+                   RenderParameters parameters, RenderMeasure &measure) {
+
+  cudaEvent_t start, stop;
+  if (measure.enabled) {
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+  }
+
   const dim3 blockSize(16, 16);
   const dim3 gridSize =
       dim3((parameters.width + blockSize.x - 1) / blockSize.x,
@@ -324,10 +331,24 @@ void launch_render(Texture &out_texture, Texture &clouds_texture,
   cudaTextureObject_t cuda_clouds_texture =
       clouds_texture.create_cuda_texture_object();
 
+  if (measure.enabled)
+    cudaEventRecord(start);
+
   render_clouds<<<gridSize, blockSize>>>(cuda_render_surface,
                                          cuda_clouds_texture, parameters);
+
+  if (measure.enabled)
+    cudaEventRecord(stop);
+
   gpuErrchk(cudaPeekAtLastError());
 
   out_texture.destroy_cuda_surface_object(cuda_render_surface);
   clouds_texture.destroy_cuda_texture_object(cuda_clouds_texture);
+
+  if (measure.enabled) {
+    cudaEventSynchronize(stop);
+    float ms = 0;
+    cudaEventElapsedTime(&ms, start, stop);
+    measure.time_ms = ms;
+  }
 }

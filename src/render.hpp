@@ -29,4 +29,10 @@ struct RenderParameters
   float gamma { 0.06f };
 };
 
-void launch_render(Texture &out_texture, Texture &clouds_texture, RenderParameters parameters);
+struct RenderMeasure
+{
+  bool enabled { false };
+  float time_ms { 0.0f };
+};
+
+void launch_render(Texture &out_texture, Texture &clouds_texture, RenderParameters parameters, RenderMeasure &measure);
