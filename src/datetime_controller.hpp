@@ -25,5 +25,5 @@ private:
   DateTimeView view;
 
   std::shared_ptr<WeatherEntry> entry;
-  ssize_t selected_index{3};
+  ssize_t selected_index{-1};
 };

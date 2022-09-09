@@ -16,8 +16,9 @@ public:
   LocationController();
   void execute();
 
-  std::shared_ptr<WeatherEntry> get_entry() { return entry; }
-  bool has_entry() { return !!entry; }
+  std::shared_ptr<WeatherEntry> get_entry() const { return entry; }
+  bool has_entry() const { return !!entry; }
+  void reset() { entry.reset(); }
 
   void onLocationSelected(size_t);
   void onLocationInputTextChanged(const std::string&);

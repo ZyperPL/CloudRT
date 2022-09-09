@@ -3,8 +3,8 @@
 namespace ImGui {
 void Image(Texture &texture) {
   ImVec2 asize = ImGui::GetContentRegionAvail();
-  asize.x -= 50.0f;
-  asize.y -= 60.0f;
+  asize.x -= 5.0f;
+  asize.y -= 6.0f;
   ImVec2 nsize = asize;
 
   const float aspect = texture.get_aspect_ratio();

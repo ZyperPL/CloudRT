@@ -246,8 +246,8 @@ WindowMain::WindowMain() {
   configure_imgui(handle);
 
   render_texture =
-      std::make_unique<Texture>(540 * 1.4, 540 * 1.4, Texture::Format::RGBA);
-  clouds_texture = std::make_unique<Texture>(512, 512, Texture::Format::RGBA);
+      std::make_unique<Texture>(1024, 1024, Texture::Format::RGBA);
+  clouds_texture = std::make_unique<Texture>(128, 128, Texture::Format::RGBA);
 
   clouds_texture_parameters.position = glm::vec3(0.0f);
   clouds_texture_parameters.width = clouds_texture->get_width();
@@ -441,6 +441,10 @@ void WindowMain::render() {
     previous_index = date_time_controller.get_index();
   }
 
+  static bool freeze_time = false;
+  if (freeze_time)
+    render_parameters.time = 0.0f;
+
   if (debug_enabled) {
     if (ImGui::Begin("Parameters")) {
       ImGui::Text("Render parameters");
@@ -453,15 +457,29 @@ void WindowMain::render() {
                         glm::value_ptr(render_parameters.camera_rotation),
                         0.01f, -1.0f, 1.0f);
 
-      ImGui::DragFloat3("Sun direction",
+      ImGui::DragFloat3("Light direction",
                         glm::value_ptr(render_parameters.light_direction),
                         0.05f, -1.0f, 1.0f);
+
+      ImGui::SliderFloat("Light power", &render_parameters.light_power, 0.0f, 3000.0f);
 
       ImGui::DragFloat3("Light color",
                         glm::value_ptr(render_parameters.light_color), 0.01f,
                         0.0f, 1.0f);
 
-      ImGui::SliderFloat("Density", &render_parameters.density, 0.0f, 1.0f);
+      ImGui::SliderFloat("Inverse density", &render_parameters.density, 0.0f, 1.0f);
+
+      ImGui::Checkbox("Freeze time", &freeze_time);
+
+      ImGui::Checkbox("Use ACES", &render_parameters.aces);
+
+      ImGui::SliderFloat("Gamma", &render_parameters.gamma, 0.0f, 3.0f);
+
+      ImGui::SliderInt("Ray samples", &render_parameters.ray_samples, 1, 10000);
+      
+      ImGui::Checkbox("Use directional ray noise offset", &render_parameters.ray_noise_offset);
+
+      ImGui::SliderFloat("Image blend factor", &render_parameters.image_blend_factor, 0.0f, 1.0f);
     }
     ImGui::End();
 
@@ -510,10 +528,9 @@ void WindowMain::render() {
       render_parameters.width = render_texture->get_width();
       render_parameters.height = render_texture->get_height();
       render_parameters.time += 0.1f;
+      render_parameters.time_2 += 0.1f;
       launch_render(*render_texture, *clouds_texture, render_parameters,
                     render_measure);
-      ImGui::Text("size = %zu x %zu", render_texture->get_width(),
-                  render_texture->get_height());
 
       ImGui::Image(*render_texture.get());
     } else {

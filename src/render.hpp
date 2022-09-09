@@ -23,10 +23,15 @@ struct RenderParameters
   glm::vec3 light_color { 1.0f, 0.9f, 0.6f };
   float light_power { 900.0f };
   float time { 1.0f };
+  float time_2 { 1.0f };
   float density { 1.0f };
   glm::vec3 clouds_start { 300.0f, 2000.0f, 7000.0f };
   glm::vec3 clouds_end { 2000.0f, 8000.0f, 10000.0f };
   float gamma { 0.06f };
+  bool aces { true };
+  int ray_samples { 512 };
+  bool ray_noise_offset { true };
+  float image_blend_factor { 0.3f };
 };
 
 struct RenderMeasure

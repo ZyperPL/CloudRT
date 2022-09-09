@@ -57,6 +57,7 @@ __global__ void render(cudaSurfaceObject_t surface,
   parameters.position *= 4.0f;
   glm::vec4 col3 = generate_texture(du, dv, parameters);
 
+
   surface_type output;
   output.x = NoiseGenerator::remap(col.r, parameters.low_cut_l, parameters.high_cut_l, 0.0f, 1.0f);
   output.y = NoiseGenerator::remap(col2.g, parameters.low_cut_m, parameters.high_cut_m, 0.0f, 1.0f);
@@ -75,7 +76,6 @@ void generate_cloud_noise(Texture &texture, CloudsRenderParameters &params) {
   cudaSurfaceObject_t surface_obj = texture.create_cuda_surface_object();
 
   render<<<gridSize, blockSize>>>(surface_obj, params);
-
   texture.destroy_cuda_surface_object(surface_obj);
 
   cudaDeviceSynchronize();
