@@ -38,19 +38,21 @@ def get_weather():
         code = 0
         if res:
             code = res.status_code
-            
             if res.status_code == 200:
                 res_json = res.json()
                 if res_json:
                    Cache.add(lat, lon, res_json)
-            else:
-                cache_entry = Cache.force_get(lat, lon)
-                if cache_entry:
-                    res_json = cache_entry.data
-
 
     if res_json is not None:
         return res_json
+    else:
+        print(f"Forcing cache for {lat}, {lon}...")
+        cache_entry = Cache.force_get(lat, lon)
+        if cache_entry:
+            res_json = cache_entry.data
+
+        if res_json is not None:
+            return res_json
 
     return json.dumps({ 'error': code })
 
