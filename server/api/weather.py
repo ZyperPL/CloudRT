@@ -13,7 +13,7 @@ def get_weather(lat: float, lon: float):
         'history_days': 3,
         'forecast_days': 7,
         'timeformat': 'timestamp_utc',
-        'apikey': 'gIPetsMKaXE7mJod'
+        'apikey': '3ovr7uFjKx4gUGpR'
     }
     try:
         params_safe = params.copy()
