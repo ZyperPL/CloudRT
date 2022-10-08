@@ -24,7 +24,7 @@ __device__ glm::vec4 generate_texture(double du, double dv, CloudsRenderParamete
                             parameters.position.y + dv, parameters.position.z) * parameters.frequency,
                   parameters.frequency));
 
-  col *= 0.33f;
+  col *= 0.334f;
   return col;
 }
 
